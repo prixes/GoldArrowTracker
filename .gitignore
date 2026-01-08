@@ -1,0 +1,44 @@
+# --- .NET / Visual Studio ---
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.idea/
+
+# --- NuGet ---
+*.nupkg
+packages/
+!packages/build/
+
+# --- MAUI / Mobile ---
+AppPackages/
+BundleArtifacts/
+Generated_Code/
+_pkginfo.txt
+*.appx
+*.appxbundle
+*.appxupload
+
+# --- C++ / XIAO / Arduino ---
+*.o
+*.obj
+*.elf
+*.hex
+*.bin
+.pio/
+.vscode/ipch/
+*.map
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
+/publish
+/.vscode
+/.gemini
+*.onnx
+*.md
+/msbuild.binlog
+/publish_output.txt

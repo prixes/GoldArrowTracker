@@ -1,0 +1,11 @@
+@GoldTracker.Server_HostAddress = http://localhost:5168
+
+GET {{GoldTracker.Server_HostAddress}}/todos/
+Accept: application/json
+
+###
+
+GET {{GoldTracker.Server_HostAddress}}/todos/1
+Accept: application/json
+
+###

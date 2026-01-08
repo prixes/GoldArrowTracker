@@ -1,0 +1,391 @@
+@page "/target-capture"
+@using GoldTracker.Mobile.Services
+@using Archery.Shared.Models
+@inject CameraService CameraService
+@inject ImageProcessingService ImageProcessingService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="py-8">
+    @if (!_analysisComplete)
+    {
+        <!-- Selection Screen -->
+        <MudPaper Elevation="2" Class="pa-8 mb-6">
+            <MudText Variant="Variant.H3" GutterBottom="true" Class="font-weight-bold">
+                Capture Target
+            </MudText>
+            <MudText Variant="Variant.Body2" Color="Color.Default" Class="mb-6">
+                Take or select a photo for automatic YOLO detection
+            </MudText>
+
+            @if (_isLoading)
+            {
+                <MudText Align="Align.Center" Class="mt-4">Loading and analyzing...</MudText>
+                <MudProgressLinear Indeterminate="true" Class="mt-2" />
+            }
+            else
+            {
+                @if (!ImageProcessingService.IsModelAvailable)
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-6">
+                        <MudText Variant="Variant.Caption">
+                            ?? YOLO model not found. Please ensure yolo11s.onnx is available.
+                        </MudText>
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Success" Dense="true" Class="mb-6">
+                        <MudText Variant="Variant.Caption">
+                            ? YOLO model loaded successfully
+                        </MudText>
+                    </MudAlert>
+                }
+
+                <MudStack Spacing="3">
+                    <!-- Action Cards -->
+                    <MudCard Class="cursor-pointer" Style="transition: all 0.2s ease;">
+                        <MudCardContent Class="d-flex align-center gap-4 pa-4" @onclick="CapturePhotoAsync" Style="cursor: pointer;">
+                            <MudStack Style="flex: 1;">
+                                <MudText Variant="Variant.H6" Class="font-weight-bold">Take Photo</MudText>
+                                <MudText Variant="Variant.Body2" Color="Color.Default">Capture & Analyze</MudText>
+                            </MudStack>
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Capture</MudButton>
+                        </MudCardContent>
+                    </MudCard>
+
+                    <MudCard Class="cursor-pointer" Style="transition: all 0.2s ease;">
+                        <MudCardContent Class="d-flex align-center gap-4 pa-4" @onclick="PickPhotoAsync" Style="cursor: pointer;">
+                            <MudStack Style="flex: 1;">
+                                <MudText Variant="Variant.H6" Class="font-weight-bold">From Gallery</MudText>
+                                <MudText Variant="Variant.Body2" Color="Color.Default">Select & Analyze</MudText>
+                            </MudStack>
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Select</MudButton>
+                        </MudCardContent>
+                    </MudCard>
+
+                    <MudCard Class="cursor-pointer" Style="transition: all 0.2s ease;">
+                        <MudCardContent Class="d-flex align-center gap-4 pa-4" @onclick="BrowseStorageAsync" Style="cursor: pointer;">
+                            <MudStack Style="flex: 1;">
+                                <MudText Variant="Variant.H6" Class="font-weight-bold">Browse Files</MudText>
+                                <MudText Variant="Variant.Body2" Color="Color.Default">Browse & Analyze</MudText>
+                            </MudStack>
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Browse</MudButton>
+                        </MudCardContent>
+                    </MudCard>
+                </MudStack>
+
+                <!-- Recent Images -->
+                @if (_storedImages.Any())
+                {
+                    <MudDivider Class="my-6" />
+                    <MudText Variant="Variant.Subtitle2" Class="mb-4 font-weight-bold">Recent Images</MudText>
+
+                    <MudGrid Spacing="1">
+                        @foreach (var imagePath in _storedImages.Take(4))
+                        {
+                            var base64 = _storedImageThumbnails.ContainsKey(imagePath)
+                                ? _storedImageThumbnails[imagePath]
+                                : "";
+
+                            <MudItem xs="3">
+                                <MudPaper Elevation="0" Class="cursor-pointer" Style="aspect-ratio: 1; overflow: hidden; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s ease;"
+                                            @onclick="() => SelectStoredImageAsync(imagePath)"
+                                            @onmouseenter="@((e) => _thumbHover = imagePath)"
+                                            @onmouseleave="@(() => _thumbHover = null)">
+                                    @if (!string.IsNullOrEmpty(base64))
+                                    {
+                                        <MudImage Src="@($"data:image/jpeg;base64,{base64}")" Alt="recent" Style="width: 100%; height: 100%; object-fit: cover;" />
+                                    }
+                                </MudPaper>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+            }
+        </MudPaper>
+    }
+    else
+    {
+        <!-- Results Screen -->
+        <MudPaper Elevation="2" Class="pa-8">
+            <MudAlert Severity="@(_analysisResult?.Status == AnalysisStatus.Success ? Severity.Success : Severity.Warning)" Dense="true" Class="mb-6">
+                @if (_analysisResult?.Status == AnalysisStatus.Success)
+                {
+                    <span>Target analyzed successfully!</span>
+                }
+                else
+                {
+                    <span>Analysis complete, but with issues.</span>
+                }
+            </MudAlert>
+
+            <MudPaper Elevation="0" Class="pa-3" Style="width: 100%; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: #f5f5f5; margin-bottom: 24px;">
+                <MudImage Src="@($"data:image/jpeg;base64,{_annotatedImageBase64}")" Alt="analyzed" Style="width: 100%; height: 100%; object-fit: contain;" />
+            </MudPaper>
+
+            @if (_analysisResult != null)
+            {
+                <MudStack Spacing="3" Class="mb-6">
+                    <MudPaper Elevation="0" Class="pa-4" Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px;">
+                        <MudText Variant="Variant.H4" Color="Color.Surface" Class="font-weight-bold">
+                            Total Score: @_analysisResult.TotalScore
+                        </MudText>
+                    </MudPaper>
+
+                    @if (_analysisResult.Status == AnalysisStatus.Success)
+                    {
+                        <MudPaper Elevation="0" Class="pa-4" Style="background: #f5f5f5; border-radius: 12px;">
+                            <MudText Variant="Variant.Subtitle2" Class="font-weight-bold mb-2">Target Detection</MudText>
+                            <MudText Variant="Variant.Body2" Color="Color.Default">
+                                Center: (@_analysisResult.TargetCenter.X.ToString("F1"), @_analysisResult.TargetCenter.Y.ToString("F1"))
+                            </MudText>
+                            <MudText Variant="Variant.Body2" Color="Color.Default">
+                                Radius: @_analysisResult.TargetRadius.ToString("F1") px
+                            </MudText>
+                        </MudPaper>
+
+                        <MudText Variant="Variant.Subtitle2" Class="font-weight-bold mt-4">Detected Arrows (@_analysisResult.ArrowScores.Count)</MudText>
+                        
+                        @foreach (var arrow in _analysisResult.ArrowScores)
+                        {
+                            <MudPaper Elevation="0" Class="pa-3" Style="@GetArrowStyle(arrow)">
+                                <MudStack Row="true" Spacing="2">
+                                    <MudStack Style="flex: 1;">
+                                        <MudText Variant="Variant.Body2" Class="font-weight-bold">
+                                            Ring @arrow.Ring - @arrow.Points Points
+                                        </MudText>
+                                        <MudText Variant="Variant.Caption" Color="Color.Default">
+                                            Distance: @arrow.DistanceFromCenter.ToString("F1") px
+                                                                                </MudText>
+                                    </MudStack>
+                                    <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">
+                                        @arrow.Points pts
+                                    </MudChip>
+                                </MudStack>
+                            </MudPaper>
+                        }
+                    }
+                </MudStack>
+            }
+
+            <MudStack Spacing="2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large" OnClick="SaveResultAsync">
+                    Save Result
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Default" FullWidth="true" Size="Size.Large" OnClick="ResetAsync">
+                    New Photo
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    private string? _originalImagePath;
+    private byte[]? _originalImageBytes;
+    private string _originalImageBase64 = string.Empty;
+    private string _annotatedImageBase64 = string.Empty;
+    
+    private bool _isLoading = false;
+    private bool _analysisComplete = false;
+
+    private TargetAnalysisResult? _analysisResult;
+
+    private string? _thumbHover = null;
+
+    private List<string> _storedImages = new();
+    private Dictionary<string, string> _storedImageThumbnails = new();
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStoredImagesAsync();
+    }
+
+    private async Task LoadStoredImagesAsync()
+    {
+        try
+        {
+            _storedImages = CameraService.GetStoredImages().ToList();
+            foreach (var imagePath in _storedImages.Take(4))
+            {
+                try
+                {
+                    var thumbnail = await ImageProcessingService.ImageToBase64Async(imagePath);
+                    if (!string.IsNullOrEmpty(thumbnail))
+                    {
+                        _storedImageThumbnails[imagePath] = thumbnail;
+                    }
+                }
+                catch { }
+            }
+        }
+        catch { }
+    }
+
+    private async Task CapturePhotoAsync()
+    {
+        if (_isLoading) return;
+        _isLoading = true;
+        try
+        {
+            var hasPermission = await CameraService.RequestCameraPermissionAsync();
+            if (!hasPermission) { Snackbar.Add("Camera permission denied", Severity.Error); return; }
+
+            var imagePath = await CameraService.CapturePhotoAsync();
+            if (string.IsNullOrEmpty(imagePath)) { Snackbar.Add("Cancelled", Severity.Info); return; }
+
+            await LoadAndAnalyzeImageAsync(imagePath);
+            await LoadStoredImagesAsync();
+        }
+        finally { _isLoading = false; }
+    }
+
+    private async Task PickPhotoAsync()
+    {
+        if (_isLoading) return;
+        _isLoading = true;
+        try
+        {
+            var imagePath = await CameraService.PickPhotoAsync();
+            if (string.IsNullOrEmpty(imagePath)) { Snackbar.Add("Cancelled", Severity.Info); return; }
+
+            await LoadAndAnalyzeImageAsync(imagePath);
+            await LoadStoredImagesAsync();
+        }
+        finally { _isLoading = false; }
+    }
+
+    private async Task BrowseStorageAsync()
+    {
+        if (_isLoading) return;
+        _isLoading = true;
+        try
+        {
+            var imagePath = await CameraService.PickMediaAsync();
+            if (string.IsNullOrEmpty(imagePath)) { Snackbar.Add("Cancelled", Severity.Info); return; }
+
+            await LoadAndAnalyzeImageAsync(imagePath);
+            await LoadStoredImagesAsync();
+        }
+        finally { _isLoading = false; }
+    }
+
+    private async Task SelectStoredImageAsync(string imagePath)
+    {
+        if (_isLoading) return;
+        _isLoading = true;
+        try
+        {
+            await LoadAndAnalyzeImageAsync(imagePath);
+        }
+        finally { _isLoading = false; }
+    }
+
+    private async Task LoadAndAnalyzeImageAsync(string imagePath)
+    {
+        // 1. Load image
+        try
+        {
+            _originalImagePath = imagePath;
+            _originalImageBytes = await System.IO.File.ReadAllBytesAsync(imagePath);
+            _originalImageBase64 = Convert.ToBase64String(_originalImageBytes);
+            _analysisComplete = false;
+            _analysisResult = null;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading image: {ex.Message}", Severity.Error);
+            _originalImagePath = null;
+            _originalImageBytes = null;
+            return;
+        }
+
+        // 2. Analyze image
+        if (!ImageProcessingService.IsModelAvailable)
+        {
+            Snackbar.Add("YOLO model not available", Severity.Error);
+            _analysisComplete = true; // Show result screen with error
+            _annotatedImageBase64 = _originalImageBase64;
+            return;
+        }
+        
+        try
+        {
+            _analysisResult = await ImageProcessingService.AnalyzeTargetFromBytesAsync(_originalImageBytes);
+
+            // Always attempt to draw detections if original image bytes exist and analysisResult is available
+            if (_originalImageBytes != null && _analysisResult != null)
+            {
+                _annotatedImageBase64 = await ImageProcessingService.DrawDetectionsOnImageAsync(_originalImageBytes, _analysisResult);
+            }
+            else
+            {
+                _annotatedImageBase64 = _originalImageBase64; // Fallback if no analysis result or original image
+            }
+
+            if (_analysisResult.Status == AnalysisStatus.Success)
+            {
+                Snackbar.Add("Analysis complete!", Severity.Success);
+            }
+            else
+            {
+                if (!string.IsNullOrEmpty(_analysisResult.ErrorMessage))
+                {
+                    Snackbar.Add(_analysisResult.ErrorMessage, Severity.Warning);
+                }
+                else
+                {
+                    Snackbar.Add("Analysis failed for an unknown reason.", Severity.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _annotatedImageBase64 = _originalImageBase64;
+            Snackbar.Add($"Analysis failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _analysisComplete = true; // Go to results screen
+            StateHasChanged();
+        }
+    }
+    
+    private async Task SaveResultAsync()
+    {
+        if (_analysisResult == null)
+        {
+            Snackbar.Add("No results to save", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            // TODO: Save to database or local storage
+            Snackbar.Add("Result saved!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Save failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ResetAsync()
+    {
+        _originalImagePath = null;
+        _originalImageBase64 = string.Empty;
+        _annotatedImageBase64 = string.Empty;
+        _originalImageBytes = null;
+        _analysisComplete = false;
+        _analysisResult = null;
+        StateHasChanged();
+    }
+
+    private string GetArrowStyle(ArrowScore arrow)
+    {
+        var borderColor = arrow.Points >= 8 ? "#4caf50" : arrow.Points >= 5 ? "#ff9800" : "#f44336";
+        return $"background: #f9f9f9; border-left: 4px solid {borderColor}; border-radius: 8px;";
+    }
+}

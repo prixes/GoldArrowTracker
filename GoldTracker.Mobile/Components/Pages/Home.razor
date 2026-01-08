@@ -1,0 +1,37 @@
+﻿@page "/"
+@inject NavigationManager Navigation
+
+<MudText Typo="Typo.h4" GutterBottom="true">Gold Arrow Tracker</MudText>
+<MudText Typo="Typo.subtitle1" Class="mb-4">YOLO-powered archery scoring companion!</MudText>
+
+<MudGrid Spacing="3">
+    <MudItem xs="12" sm="6">
+        <MudCard Elevation="2" Class="pa-4" Style="height: 100%;">
+            <MudCardActions Class="d-flex justify-center py-4">
+                <MudButton ButtonType="ButtonType.Button" OnClick="NavigateToCapture" Color="Color.Primary" Variant="Variant.Text" Class="flex-grow-1">
+                    <div class="d-flex flex-column align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Camera" Size="Size.Large" Class="mb-2" />
+                        <MudText Typo="Typo.h6">Capture Target</MudText>
+                        <MudText Typo="Typo.body2" Align="Align.Center">Capture a target photo and automatically detect arrows using YOLO object detection.</MudText>
+                    </div>
+                </MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" sm="6">
+        <MudCard Elevation="2" Class="pa-4" Style="height: 100%;">
+            <div class="d-flex flex-column align-center">
+                <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Large" Class="mb-2" />
+                <MudText Typo="Typo.h6">View History</MudText>
+                <MudText Typo="Typo.body2" Align="Align.Center">Browse your previous target analysis and scores.</MudText>
+            </div>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private void NavigateToCapture()
+    {
+        Navigation.NavigateTo("/target-capture");
+    }
+}
