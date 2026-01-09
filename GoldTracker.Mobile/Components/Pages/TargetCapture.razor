@@ -6,11 +6,11 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="py-8">
+<MudContainer MaxWidth="MaxWidth.Small">
     @if (!_analysisComplete)
     {
         <!-- Selection Screen -->
-        <MudPaper Elevation="2" Class="pa-8 mb-6">
+        <MudPaper Elevation="0" Class="px-4 py-6">
             <MudText Variant="Variant.H3" GutterBottom="true" Class="font-weight-bold">
                 Capture Target
             </MudText>
@@ -29,7 +29,7 @@
                 {
                     <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-6">
                         <MudText Variant="Variant.Caption">
-                            ?? YOLO model not found. Please ensure yolo11s.onnx is available.
+                            YOLO model not found. Please ensure yolo11s.onnx is available.
                         </MudText>
                     </MudAlert>
                 }
@@ -37,42 +37,36 @@
                 {
                     <MudAlert Severity="Severity.Success" Dense="true" Class="mb-6">
                         <MudText Variant="Variant.Caption">
-                            ? YOLO model loaded successfully
+                            YOLO model loaded successfully
                         </MudText>
                     </MudAlert>
                 }
 
                 <MudStack Spacing="3">
                     <!-- Action Cards -->
-                    <MudCard Class="cursor-pointer" Style="transition: all 0.2s ease;">
-                        <MudCardContent Class="d-flex align-center gap-4 pa-4" @onclick="CapturePhotoAsync" Style="cursor: pointer;">
-                            <MudStack Style="flex: 1;">
-                                <MudText Variant="Variant.H6" Class="font-weight-bold">Take Photo</MudText>
-                                <MudText Variant="Variant.Body2" Color="Color.Default">Capture & Analyze</MudText>
-                            </MudStack>
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Capture</MudButton>
-                        </MudCardContent>
-                    </MudCard>
+                    <div Class="cursor-pointer d-flex align-center gap-4 px-4 py-3" @onclick="CapturePhotoAsync" Style="transition: all 0.2s ease; border-radius: 6px; border: 1px solid var(--mud-palette-lines-default); background-color: var(--mud-palette-surface);">
+                        <MudStack Style="flex: 1;">
+                            <MudText Variant="Variant.H6" Class="font-weight-bold">Take Photo</MudText>
+                            <MudText Variant="Variant.Body2" Color="Color.Default">Capture & Analyze</MudText>
+                        </MudStack>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Capture</MudButton>
+                    </div>
 
-                    <MudCard Class="cursor-pointer" Style="transition: all 0.2s ease;">
-                        <MudCardContent Class="d-flex align-center gap-4 pa-4" @onclick="PickPhotoAsync" Style="cursor: pointer;">
-                            <MudStack Style="flex: 1;">
-                                <MudText Variant="Variant.H6" Class="font-weight-bold">From Gallery</MudText>
-                                <MudText Variant="Variant.Body2" Color="Color.Default">Select & Analyze</MudText>
-                            </MudStack>
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Select</MudButton>
-                        </MudCardContent>
-                    </MudCard>
+                    <div Class="cursor-pointer d-flex align-center gap-4 px-4 py-3" @onclick="PickPhotoAsync" Style="transition: all 0.2s ease; border-radius: 6px; border: 1px solid var(--mud-palette-lines-default); background-color: var(--mud-palette-surface);">
+                        <MudStack Style="flex: 1;">
+                            <MudText Variant="Variant.H6" Class="font-weight-bold">From Gallery</MudText>
+                            <MudText Variant="Variant.Body2" Color="Color.Default">Select & Analyze</MudText>
+                        </MudStack>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Select</MudButton>
+                    </div>
 
-                    <MudCard Class="cursor-pointer" Style="transition: all 0.2s ease;">
-                        <MudCardContent Class="d-flex align-center gap-4 pa-4" @onclick="BrowseStorageAsync" Style="cursor: pointer;">
-                            <MudStack Style="flex: 1;">
-                                <MudText Variant="Variant.H6" Class="font-weight-bold">Browse Files</MudText>
-                                <MudText Variant="Variant.Body2" Color="Color.Default">Browse & Analyze</MudText>
-                            </MudStack>
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Browse</MudButton>
-                        </MudCardContent>
-                    </MudCard>
+                    <div Class="cursor-pointer d-flex align-center gap-4 px-4 py-3" @onclick="BrowseStorageAsync" Style="transition: all 0.2s ease; border-radius: 6px; border: 1px solid var(--mud-palette-lines-default); background-color: var(--mud-palette-surface);">
+                        <MudStack Style="flex: 1;">
+                            <MudText Variant="Variant.H6" Class="font-weight-bold">Browse Files</MudText>
+                            <MudText Variant="Variant.Body2" Color="Color.Default">Browse & Analyze</MudText>
+                        </MudStack>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Browse</MudButton>
+                    </div>
                 </MudStack>
 
                 <!-- Recent Images -->
@@ -108,21 +102,22 @@
     else
     {
         <!-- Results Screen -->
-        <MudPaper Elevation="2" Class="pa-8">
-            <MudAlert Severity="@(_analysisResult?.Status == AnalysisStatus.Success ? Severity.Success : Severity.Warning)" Dense="true" Class="mb-6">
-                @if (_analysisResult?.Status == AnalysisStatus.Success)
-                {
-                    <span>Target analyzed successfully!</span>
-                }
-                else
-                {
+        <MudPaper Elevation="0" Class="px-4 py-6">
+            @if (_analysisResult?.Status == AnalysisStatus.Failure)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-6">
                     <span>Analysis complete, but with issues.</span>
-                }
-            </MudAlert>
+                </MudAlert>
+            }
 
             <MudPaper Elevation="0" Class="pa-3" Style="width: 100%; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: #f5f5f5; margin-bottom: 24px;">
                 <MudImage Src="@($"data:image/jpeg;base64,{_annotatedImageBase64}")" Alt="analyzed" Style="width: 100%; height: 100%; object-fit: contain;" />
             </MudPaper>
+
+            @if (_analysisResult?.Status == AnalysisStatus.Success)
+            {
+                <MudText Typo="Typo.subtitle1" Color="Color.Success" Align="Align.Center" Class="mb-4">Target analyzed successfully!</MudText>
+            }
 
             @if (_analysisResult != null)
             {
@@ -135,7 +130,7 @@
 
                     @if (_analysisResult.Status == AnalysisStatus.Success)
                     {
-                        <MudPaper Elevation="0" Class="pa-4" Style="background: #f5f5f5; border-radius: 12px;">
+                        <div Class="pa-4" Style="background: #f5f5f5; border-radius: 12px;">
                             <MudText Variant="Variant.Subtitle2" Class="font-weight-bold mb-2">Target Detection</MudText>
                             <MudText Variant="Variant.Body2" Color="Color.Default">
                                 Center: (@_analysisResult.TargetCenter.X.ToString("F1"), @_analysisResult.TargetCenter.Y.ToString("F1"))
@@ -143,13 +138,13 @@
                             <MudText Variant="Variant.Body2" Color="Color.Default">
                                 Radius: @_analysisResult.TargetRadius.ToString("F1") px
                             </MudText>
-                        </MudPaper>
+                        </div>
 
                         <MudText Variant="Variant.Subtitle2" Class="font-weight-bold mt-4">Detected Arrows (@_analysisResult.ArrowScores.Count)</MudText>
                         
                         @foreach (var arrow in _analysisResult.ArrowScores)
                         {
-                            <MudPaper Elevation="0" Class="pa-3" Style="@GetArrowStyle(arrow)">
+                            <div Class="pa-3" Style="@GetArrowStyle(arrow)">
                                 <MudStack Row="true" Spacing="2">
                                     <MudStack Style="flex: 1;">
                                         <MudText Variant="Variant.Body2" Class="font-weight-bold">
@@ -157,13 +152,13 @@
                                         </MudText>
                                         <MudText Variant="Variant.Caption" Color="Color.Default">
                                             Distance: @arrow.DistanceFromCenter.ToString("F1") px
-                                                                                </MudText>
+                                        </MudText>
                                     </MudStack>
                                     <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">
                                         @arrow.Points pts
                                     </MudChip>
                                 </MudStack>
-                            </MudPaper>
+                            </div>
                         }
                     }
                 </MudStack>
@@ -385,7 +380,20 @@
 
     private string GetArrowStyle(ArrowScore arrow)
     {
-        var borderColor = arrow.Points >= 8 ? "#4caf50" : arrow.Points >= 5 ? "#ff9800" : "#f44336";
+        var borderColor = arrow.Points switch
+        {
+            10 => "#FFD700", // Gold
+            9 => "#DAA520",  // Gold
+            8 => "#FF0000",  // Red
+            7 => "#CD5C5C",  // Red
+            6 => "#0000FF",  // Blue
+            5 => "#4169E1",  // Blue
+            4 => "#000000",  // Black
+            3 => "#36454F",  // Black
+            2 => "#FFFFFF",  // White
+            1 => "#F5F5DC",  // Off-white
+            _ => "#f44336"   // Default to red for unknown/0 points
+        };
         return $"background: #f9f9f9; border-left: 4px solid {borderColor}; border-radius: 8px;";
     }
 }

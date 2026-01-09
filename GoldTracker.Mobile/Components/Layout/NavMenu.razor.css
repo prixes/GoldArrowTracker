@@ -1,0 +1,48 @@
+.bottom-nav-bar {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    /* Background handled by .bottom-nav-background-wrapper in MainLayout.razor.css */
+    box-shadow: 0 -1px 5px rgba(0, 0, 0, 0.3); /* Slightly stronger shadow */
+    padding: 5px 0;
+    margin: 0px;
+}
+
+    .bottom-nav-bar p {
+        margin: 0;
+        font-size: 10px; /* Increased font size for better readability and to prevent clipping */
+        text-align: center;
+    }
+
+.mud-grid-item {
+    padding: 0px;
+    /* Background handled by .bottom-nav-background-wrapper */
+}
+
+.mud-nav-link-text {
+    margin: 0px !important;
+}
+
+.nav-link {
+    /* Background handled by .bottom-nav-background-wrapper */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-decoration: none;
+    color: #F0F0F0; /* Light grey for inactive text */
+    padding: 0 5px; /* Added horizontal padding for text */
+}
+
+.mud-nav-link {
+    padding-left: 0px;
+    padding-right: 0px;
+    /* Background handled by .bottom-nav-background-wrapper */
+}
+
+.active-nav-link .MudIconButton-root {
+    color: #FFD700; /* Target Gold for active icon */
+}
+
+.active-nav-link .mud-text {
+    color: #FFD700 !important; /* Target Gold for active text */
+}

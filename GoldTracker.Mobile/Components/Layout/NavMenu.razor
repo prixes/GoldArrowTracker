@@ -1,4 +1,53 @@
-﻿<MudNavMenu>
-    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
-    <MudNavLink Href="/targetcapture" Icon="@Icons.Material.Filled.Camera">Target Capture</MudNavLink>
-</MudNavMenu>
+@using Microsoft.AspNetCore.Components.Routing
+@using MudBlazor
+
+<MudGrid Class="bottom-nav-bar align-content-center" Justify="Justify.SpaceAround" Spacing="0">
+    <MudItem xs="3">
+        <MudNavLink Href="home" Match="NavLinkMatch.All" Class="nav-link align-content-center" ActiveClass="active-nav-link">
+            <MudStack AlignItems="AlignItems.Center" Spacing="0">
+                <MudIconButton Icon="@Icons.Material.Filled.Home" Size="Size.Small" Color="@GetNavLinkColor("home")" />
+                <MudText Color="@GetTextColor("home")">Home</MudText>
+            </MudStack>
+        </MudNavLink>
+    </MudItem>
+    <MudItem xs="3">
+        <MudNavLink Href="target-capture" Class="nav-link align-content-center" ActiveClass="active-nav-link">
+            <MudStack AlignItems="AlignItems.Center" Spacing="0">
+                <MudIconButton Icon="@Icons.Material.Filled.Camera" Size="Size.Small" Color="@GetNavLinkColor("target-capture")" />
+                <MudText Color="@GetTextColor("target-capture")">Capture</MudText>
+            </MudStack>
+        </MudNavLink>
+    </MudItem>
+    <MudItem xs="3">
+        <MudNavLink Href="history" Class="nav-link align-content-center" ActiveClass="active-nav-link">
+            <MudStack AlignItems="AlignItems.Center" Spacing="0">
+                <MudIconButton Icon="@Icons.Material.Filled.History" Size="Size.Small" Color="@GetNavLinkColor("history")" />
+                <MudText Color="@GetTextColor("history")">History</MudText>
+            </MudStack>
+        </MudNavLink>
+    </MudItem>
+    <MudItem xs="3">
+        <MudNavLink Href="settings" Class="nav-link align-content-center" ActiveClass="active-nav-link">
+            <MudStack AlignItems="AlignItems.Center" Spacing="0">
+                <MudIconButton Icon="@Icons.Material.Filled.Settings" Size="Size.Small" Color="@GetNavLinkColor("settings")" />
+                <MudText Color="@GetTextColor("settings")">Settings</MudText>
+            </MudStack>
+        </MudNavLink>
+    </MudItem>
+</MudGrid>
+
+
+@inject NavigationManager NavigationManager
+@code {
+    private Color GetNavLinkColor(string href)
+    {
+        return CurrentUri.Contains(href) && href != "" ? Color.Tertiary : Color.Primary;
+    }
+
+    private Color GetTextColor(string href)
+    {
+        return CurrentUri.Contains(href) && href != "" ? Color.Tertiary : Color.Primary;
+    }
+
+    private string CurrentUri => NavigationManager.Uri.Replace(NavigationManager.BaseUri, "");
+}
