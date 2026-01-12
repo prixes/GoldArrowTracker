@@ -260,4 +260,33 @@ public class ImageProcessingService
         await image.SaveAsJpegAsync(ms);
         return ms.ToArray();
     }
+
+    /// <summary>
+    /// Crops an image based on normalized coordinates (0-1) using a pre-loaded Image object.
+    /// This is much more efficient when performing multiple crops on the same source image.
+    /// </summary>
+    public async Task<byte[]> CropImageAsync(SixLabors.ImageSharp.Image<Rgba32> sourceImage, double startXNorm, double startYNorm, double widthNorm, double heightNorm)
+    {
+        int x = (int)(startXNorm * sourceImage.Width);
+        int y = (int)(startYNorm * sourceImage.Height);
+        int w = (int)(widthNorm * sourceImage.Width);
+        int h = (int)(heightNorm * sourceImage.Height);
+
+        // Ensure bounds
+        x = Math.Max(0, x);
+        y = Math.Max(0, y);
+        w = Math.Min(w, sourceImage.Width - x);
+        h = Math.Min(h, sourceImage.Height - y);
+
+        if (w <= 0 || h <= 0) return Array.Empty<byte>();
+
+        // Clone the region to avoid modifying the source
+        using var croppedImage = sourceImage.Clone(ctx => ctx.Crop(new SixLabors.ImageSharp.Rectangle(x, y, w, h)));
+
+        using var ms = new System.IO.MemoryStream();
+        // Use quality 60 for faster encoding (was using default 75)
+        var encoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = 60 };
+        await croppedImage.SaveAsJpegAsync(ms, encoder);
+        return ms.ToArray();
+    }
 }
