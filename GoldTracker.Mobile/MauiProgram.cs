@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
 using GoldTracker.Mobile.Services;
+using Archery.Shared.Models;
+using Archery.Shared.Services;
 
 namespace GoldTracker.Mobile
 {
@@ -21,25 +23,53 @@ namespace GoldTracker.Mobile
             builder.Services.AddMudBlazorSnackbar();
             builder.Services.AddMudServices();
             builder.Services.AddScoped<CameraService>();
-            
-            // Initialize ImageProcessingService with model path
-            builder.Services.AddScoped<ImageProcessingService>(sp =>
+
+            // Register Object Detection Configuration
+            builder.Services.AddSingleton(sp => 
             {
-                System.Diagnostics.Debug.WriteLine("[MauiProgram.CreateMauiApp] Initializing ImageProcessingService...");
-                
-                // First, ensure model is deployed from embedded resources
-                var deployedModelPath = YoloModelDeploymentService.EnsureModelDeployed();
-                System.Diagnostics.Debug.WriteLine($"[MauiProgram.CreateMauiApp] Deployed model path: {deployedModelPath ?? "NULL"}");
-                
-                // If deployment succeeded, use that path; otherwise try other locations
-                var modelPath = deployedModelPath ?? GetYoloModelPath();
-                System.Diagnostics.Debug.WriteLine($"[MauiProgram.CreateMauiApp] Final model path: {modelPath ?? "NULL"}");
-                
-                var service = new ImageProcessingService(modelPath);
-                System.Diagnostics.Debug.WriteLine($"[MauiProgram.CreateMauiApp] ImageProcessingService created. Model available: {service.IsModelAvailable}");
-                return service;
+                // Load config synchronously during startup
+                try 
+                {
+                    return ObjectDetectionConfig.LoadFromJsonAsync("Archery.Shared.Configurations.object_detection_config.json").Result;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MauiProgram] Critical Error loading ObjectDetectionConfig: {ex.Message}");
+                    throw;
+                }
             });
 
+            // Register Object Detection Service
+            builder.Services.AddScoped<IObjectDetectionService>(sp => 
+            {
+                var config = sp.GetRequiredService<ObjectDetectionConfig>();
+                
+                // Ensure model is deployed
+                string modelPath;
+                try
+                {
+                    modelPath = ObjectDetectionModelDeploymentService.EnsureModelDeployed();
+                    System.Diagnostics.Debug.WriteLine($"[MauiProgram] Model deployed to: {modelPath}");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MauiProgram] Critical Error deploying model: {ex.Message}");
+                    // In a real app we might want to handle this gracefully, but for now throw
+                    throw;
+                }
+
+                return new ObjectDetectionService(modelPath, config);
+            });
+
+            // Register Target Scoring Service
+            builder.Services.AddScoped<ITargetScoringService, TargetScoringService>();
+
+            // Register Image Processing Service
+            builder.Services.AddScoped<ImageProcessingService>();
+
+            // Register Model Diagnostic Service
+            builder.Services.AddScoped<ObjectDetectionModelDiagnosticService>();
+            
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();
     		builder.Logging.AddDebug();
@@ -47,61 +77,6 @@ namespace GoldTracker.Mobile
 
             System.Diagnostics.Debug.WriteLine("[MauiProgram.CreateMauiApp] ✓ MauiApp created successfully");
             return builder.Build();
-        }
-
-        /// <summary>
-        /// Determines the YOLO model path for the current platform.
-        /// </summary>
-        private static string? GetYoloModelPath()
-        {
-            System.Diagnostics.Debug.WriteLine("[MauiProgram.GetYoloModelPath] Starting model path detection...");
-            
-            try
-            {
-                // Primary: Check deployed model in app data (set by YoloModelDeploymentService)
-                var deployedPath = YoloModelDeploymentService.GetModelPath();
-                System.Diagnostics.Debug.WriteLine($"[MauiProgram.GetYoloModelPath] Checking deployed path: {deployedPath}");
-                if (File.Exists(deployedPath))
-                {
-                    System.Diagnostics.Debug.WriteLine($"[MauiProgram.GetYoloModelPath] ✓ Found at deployed path");
-                    return deployedPath;
-                }
-                
-                // Secondary: Check the hardcoded development path (Windows only)
-                var devPath = @"C:\Users\david\source\repos\GoldArrowTracker\Archery.Shared\ObjectModels\yolo11s.onnx";
-                System.Diagnostics.Debug.WriteLine($"[MauiProgram.GetYoloModelPath] Checking dev path: {devPath}");
-                if (File.Exists(devPath))
-                {
-                    System.Diagnostics.Debug.WriteLine($"[MauiProgram.GetYoloModelPath] ✓ Found at dev path");
-                    return devPath;
-                }
-
-                // Tertiary: Check AppData directory
-                var appDataPath = Path.Combine(FileSystem.AppDataDirectory, "yolo11s.onnx");
-                System.Diagnostics.Debug.WriteLine($"[MauiProgram.GetYoloModelPath] Checking AppData: {appDataPath}");
-                if (File.Exists(appDataPath))
-                {
-                    System.Diagnostics.Debug.WriteLine($"[MauiProgram.GetYoloModelPath] ✓ Found at AppData path");
-                    return appDataPath;
-                }
-
-                // Quaternary: Check relative to executable
-                var exePath = Path.Combine(AppContext.BaseDirectory, "ObjectModels", "yolo11s.onnx");
-                System.Diagnostics.Debug.WriteLine($"[MauiProgram.GetYoloModelPath] Checking exe path: {exePath}");
-                if (File.Exists(exePath))
-                {
-                    System.Diagnostics.Debug.WriteLine($"[MauiProgram.GetYoloModelPath] ✓ Found at exe path");
-                    return exePath;
-                }
-
-                System.Diagnostics.Debug.WriteLine("[MauiProgram.GetYoloModelPath] ✗ Model not found in any location");
-                return null;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[MauiProgram.GetYoloModelPath] ✗ Error: {ex.Message}");
-                return null;
-            }
         }
     }
 }

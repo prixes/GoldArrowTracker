@@ -6,9 +6,9 @@ using System.Reflection;
 namespace Archery.Shared.Models;
 
 /// <summary>
-/// Configuration for YOLO inference.
+/// Configuration for Object Detection inference.
 /// </summary>
-public class YoloConfig
+public class ObjectDetectionConfig
 {
     /// <summary>
     /// Gets or sets the model input size (assumed square: 640x640).
@@ -35,11 +35,11 @@ public class YoloConfig
     public Dictionary<int, string> ClassLabels { get; set; } = new();
 
     /// <summary>
-    /// Loads YOLO configuration from an embedded JSON resource.
+    /// Loads configuration from an embedded JSON resource.
     /// </summary>
-    /// <param name="resourceName">The full name of the embedded JSON resource (e.g., "YourAssembly.Configurations.yoloConfig.json").</param>
-    /// <returns>A YoloConfig instance populated with data from the JSON.</returns>
-    public static async Task<YoloConfig> LoadFromJsonAsync(string resourceName)
+    /// <param name="resourceName">The full name of the embedded JSON resource (e.g., "YourAssembly.Configurations.object_detection_config.json").</param>
+    /// <returns>A ObjectDetectionConfig instance populated with data from the JSON.</returns>
+    public static async Task<ObjectDetectionConfig> LoadFromJsonAsync(string resourceName)
     {
         var assembly = Assembly.GetExecutingAssembly();
         using var stream = assembly.GetManifestResourceStream(resourceName);
@@ -53,14 +53,14 @@ public class YoloConfig
         await stream.CopyToAsync(memoryStream);
         memoryStream.Position = 0;
 
-        var config = await JsonSerializer.DeserializeAsync<YoloConfig>(memoryStream, new JsonSerializerOptions
+        var config = await JsonSerializer.DeserializeAsync<ObjectDetectionConfig>(memoryStream, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true // Allow matching "InputSize" to "inputsize" etc.
         });
 
         if (config == null)
         {
-            throw new InvalidOperationException($"Failed to deserialize YoloConfig from embedded resource '{resourceName}'.");
+            throw new InvalidOperationException($"Failed to deserialize ObjectDetectionConfig from embedded resource '{resourceName}'.");
         }
 
         return config;

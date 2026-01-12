@@ -3,9 +3,9 @@
 namespace Archery.Shared.Models;
 
 /// <summary>
-/// Represents a single detection output from YOLO model.
+/// Represents a single detection output from object detection model.
 /// </summary>
-public class YoloDetection
+public class ObjectDetectionResult
 {
     /// <summary>
     /// Gets or sets the class ID (0-10 for arrows, special value for target).

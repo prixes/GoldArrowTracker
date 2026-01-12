@@ -14,10 +14,11 @@ using Xunit;
 /// </summary>
 public class TargetScoringServiceTests
 {
-    // Dummy IYoloInferenceService for tests that don't need actual inference
-    private class DummyYoloInferenceService : IYoloInferenceService
+    // Dummy IObjectDetectionService for tests that don't need actual inference
+    private class DummyObjectDetectionService : IObjectDetectionService
     {
-        public List<YoloDetection> Predict(byte[] imageBytes) => new();
+        public ObjectDetectionConfig Config => new ObjectDetectionConfig();
+        public List<ObjectDetectionResult> Predict(byte[] imageBytes) => new();
         public void Dispose() { }
     }
 
@@ -25,7 +26,7 @@ public class TargetScoringServiceTests
     public void CalculateArrowScore_ArrowAtCenter_Returns10Points()
     {
         // Arrange
-        var service = new TargetScoringService(new DummyYoloInferenceService());
+        var service = new TargetScoringService(new DummyObjectDetectionService());
         const float distanceFromCenter = 0;
         const float targetRadius = 100;
 
@@ -40,7 +41,7 @@ public class TargetScoringServiceTests
     public void CalculateArrowScore_ArrowAtInnerRing_Returns9Points()
     {
         // Arrange: 15% of radius (ring 2)
-        var service = new TargetScoringService(new DummyYoloInferenceService());
+        var service = new TargetScoringService(new DummyObjectDetectionService());
         const float distanceFromCenter = 15;
         const float targetRadius = 100;
 
@@ -55,7 +56,7 @@ public class TargetScoringServiceTests
     public void CalculateArrowScore_ArrowAtOuterRing_Returns1Point()
     {
         // Arrange: 95% of radius (ring 10)
-        var service = new TargetScoringService(new DummyYoloInferenceService());
+        var service = new TargetScoringService(new DummyObjectDetectionService());
         const float distanceFromCenter = 95;
         const float targetRadius = 100;
 
@@ -70,7 +71,7 @@ public class TargetScoringServiceTests
     public void CalculateArrowScore_ArrowOutsideTarget_Returns0Points()
     {
         // Arrange
-        var service = new TargetScoringService(new DummyYoloInferenceService());
+        var service = new TargetScoringService(new DummyObjectDetectionService());
         const float distanceFromCenter = 150;
         const float targetRadius = 100;
 
@@ -85,7 +86,7 @@ public class TargetScoringServiceTests
     public void CalculateArrowScore_ZeroRadius_Returns0Points()
     {
         // Arrange
-        var service = new TargetScoringService(new DummyYoloInferenceService());
+        var service = new TargetScoringService(new DummyObjectDetectionService());
         const float distanceFromCenter = 50;
         const float targetRadius = 0;
 
@@ -106,7 +107,7 @@ public class TargetScoringServiceTests
     public void CalculateArrowScore_VariousDistances_ReturnsExpectedScore(float distance, int expectedScore)
     {
         // Arrange
-        var service = new TargetScoringService(new DummyYoloInferenceService());
+        var service = new TargetScoringService(new DummyObjectDetectionService());
         const float targetRadius = 100;
 
         // Act
@@ -116,17 +117,19 @@ public class TargetScoringServiceTests
         Assert.Equal(expectedScore, score);
     }
 
-    // Mock implementation of IYoloInferenceService for testing AnalyzeTargetImageAsync
-    private class MockYoloInferenceService : IYoloInferenceService
+    // Mock implementation of IObjectDetectionService for testing AnalyzeTargetImageAsync
+    private class MockObjectDetectionService : IObjectDetectionService
     {
-        private readonly List<YoloDetection> _mockDetections;
+        private readonly List<ObjectDetectionResult> _mockDetections;
 
-        public MockYoloInferenceService(List<YoloDetection> mockDetections)
+        public ObjectDetectionConfig Config => new ObjectDetectionConfig();
+
+        public MockObjectDetectionService(List<ObjectDetectionResult> mockDetections)
         {
             _mockDetections = mockDetections;
         }
 
-        public List<YoloDetection> Predict(byte[] imageBytes)
+        public List<ObjectDetectionResult> Predict(byte[] imageBytes)
         {
             return _mockDetections;
         }
@@ -138,9 +141,9 @@ public class TargetScoringServiceTests
     public async Task AnalyzeTargetImageAsync_WithValidDetections_ReturnsSuccessAndCorrectScore()
     {
         // Arrange
-        var targetDetection = new YoloDetection
+        var targetDetection = new ObjectDetectionResult
         {
-            ClassId = 9,       // Mapped to "target" in YoloConfig
+            ClassId = 9,       // Mapped to "target" in Config
             ClassName = "target",
             Confidence = 0.95f,
             X = 100,
@@ -149,9 +152,9 @@ public class TargetScoringServiceTests
             Height = 200
         };
 
-        var arrowDetection1 = new YoloDetection
+        var arrowDetection1 = new ObjectDetectionResult
         {
-            ClassId = 2,       // Mapped to "10" in YoloConfig (inner ring)
+            ClassId = 2,       // Mapped to "10" in Config (inner ring)
             ClassName = "10",
             Confidence = 0.85f,
             X = 100,
@@ -160,9 +163,9 @@ public class TargetScoringServiceTests
             Height = 10
         };
         
-        var arrowDetection2 = new YoloDetection
+        var arrowDetection2 = new ObjectDetectionResult
         {
-            ClassId = 7,       // Mapped to "6" in YoloConfig (mid ring)
+            ClassId = 7,       // Mapped to "6" in Config (mid ring)
             ClassName = "6",
             Confidence = 0.75f,
             X = 120,
@@ -171,9 +174,9 @@ public class TargetScoringServiceTests
             Height = 10
         };
         
-        var arrowDetection3 = new YoloDetection
+        var arrowDetection3 = new ObjectDetectionResult
         {
-            ClassId = 0,       // Mapped to "0" in YoloConfig (miss)
+            ClassId = 0,       // Mapped to "0" in Config (miss)
             ClassName = "0",
             Confidence = 0.60f,
             X = 250,
@@ -182,7 +185,7 @@ public class TargetScoringServiceTests
             Height = 10
         };
 
-        var mockDetections = new List<YoloDetection>
+        var mockDetections = new List<ObjectDetectionResult>
         {
             targetDetection,
             arrowDetection1,
@@ -190,8 +193,8 @@ public class TargetScoringServiceTests
             arrowDetection3
         };
 
-        var mockYoloService = new MockYoloInferenceService(mockDetections);
-        var service = new TargetScoringService(mockYoloService);
+        var mockService = new MockObjectDetectionService(mockDetections);
+        var service = new TargetScoringService(mockService);
 
         // Act
         var result = await service.AnalyzeTargetImageAsync(new byte[] { 0x01, 0x02, 0x03 }); // Dummy image data
@@ -216,7 +219,7 @@ public class TargetScoringServiceTests
     public async Task AnalyzeTargetImageAsync_NoTargetDetection_ReturnsFailure()
     {
         // Arrange
-        var arrowDetection = new YoloDetection
+        var arrowDetection = new ObjectDetectionResult
         {
             ClassId = 2,
             ClassName = "10",
@@ -227,9 +230,9 @@ public class TargetScoringServiceTests
             Height = 10
         };
 
-        var mockDetections = new List<YoloDetection> { arrowDetection };
-        var mockYoloService = new MockYoloInferenceService(mockDetections);
-        var service = new TargetScoringService(mockYoloService);
+        var mockDetections = new List<ObjectDetectionResult> { arrowDetection };
+        var mockService = new MockObjectDetectionService(mockDetections);
+        var service = new TargetScoringService(mockService);
 
         // Act
         var result = await service.AnalyzeTargetImageAsync(new byte[] { 0x01, 0x02, 0x03 });
@@ -243,15 +246,15 @@ public class TargetScoringServiceTests
     public async Task AnalyzeTargetImageAsync_NoDetections_ReturnsFailure()
     {
         // Arrange
-        var mockDetections = new List<YoloDetection>();
-        var mockYoloService = new MockYoloInferenceService(mockDetections);
-        var service = new TargetScoringService(mockYoloService);
+        var mockDetections = new List<ObjectDetectionResult>();
+        var mockService = new MockObjectDetectionService(mockDetections);
+        var service = new TargetScoringService(mockService);
 
         // Act
         var result = await service.AnalyzeTargetImageAsync(new byte[] { 0x01, 0x02, 0x03 });
 
         // Assert
         Assert.Equal(AnalysisStatus.Failure, result.Status);
-        Assert.Contains("YOLO model did not detect any objects in the image", result.ErrorMessage);
+        Assert.Contains("Object Detection model did not detect any objects in the image", result.ErrorMessage);
     }
 }

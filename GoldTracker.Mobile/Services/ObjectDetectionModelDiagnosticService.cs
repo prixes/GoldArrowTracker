@@ -3,26 +3,26 @@
 namespace GoldTracker.Mobile.Services;
 
 /// <summary>
-/// Diagnostic service for debugging YOLO model loading issues.
+/// Diagnostic service for debugging Object Detection model loading issues.
 /// </summary>
-public class YoloModelDiagnosticService
+public class ObjectDetectionModelDiagnosticService
 {
     private readonly ImageProcessingService _imageProcessingService;
     private readonly List<string> _diagnostics = new();
 
-    public YoloModelDiagnosticService(ImageProcessingService imageProcessingService)
+    public ObjectDetectionModelDiagnosticService(ImageProcessingService imageProcessingService)
     {
         _imageProcessingService = imageProcessingService;
     }
 
     /// <summary>
-    /// Gets a comprehensive diagnostic report about the YOLO model status.
+    /// Gets a comprehensive diagnostic report about the Object Detection model status.
     /// </summary>
     public string GetDiagnosticReport()
     {
         _diagnostics.Clear();
         
-        _diagnostics.Add("=== YOLO Model Diagnostic Report ===");
+        _diagnostics.Add("=== Object Detection Model Diagnostic Report ===");
         _diagnostics.Add($"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         _diagnostics.Add("");
         
@@ -71,10 +71,10 @@ public class YoloModelDiagnosticService
         
         var possiblePaths = new[]
         {
-            @"C:\Users\david\source\repos\GoldArrowTracker\Archery.Shared\ObjectModels\yolo11s.onnx",
-            Path.Combine(FileSystem.AppDataDirectory, "yolo11s.onnx"),
-            Path.Combine(AppContext.BaseDirectory, "ObjectModels", "yolo11s.onnx"),
-            Path.Combine(AppContext.BaseDirectory, "yolo11s.onnx"),
+            @"C:\Users\david\source\repos\GoldArrowTracker\Archery.Shared\ObjectModels\object_detection_model.onnx",
+            Path.Combine(FileSystem.AppDataDirectory, "object_detection_model.onnx"),
+            Path.Combine(AppContext.BaseDirectory, "ObjectModels", "object_detection_model.onnx"),
+            Path.Combine(AppContext.BaseDirectory, "object_detection_model.onnx"),
         };
         
         foreach (var path in possiblePaths)
@@ -102,11 +102,11 @@ public class YoloModelDiagnosticService
     {
         if (_imageProcessingService.IsModelAvailable)
         {
-            return $"? YOLO Model Ready\nPath: {_imageProcessingService.ModelPath}";
+            return $"? Object Detection Model Ready\nPath: {_imageProcessingService.ModelPath}";
         }
         else
         {
-            return "? YOLO Model Not Found\nCheck debug output for details";
+            return "? Object Detection Model Not Found\nCheck debug output for details";
         }
     }
 

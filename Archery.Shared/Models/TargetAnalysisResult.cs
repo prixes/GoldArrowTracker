@@ -52,7 +52,7 @@ public class TargetAnalysisResult
     public List<ArrowScore> ArrowScores { get; set; } = new();
 
     /// <summary>
-    /// Gets or sets all raw YOLO detections found in the image.
+    /// Gets or sets all raw detections found in the image.
     /// </summary>
-    public List<YoloDetection> Detections { get; set; } = new();
+    public List<ObjectDetectionResult> Detections { get; set; } = new();
 }

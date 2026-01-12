@@ -5,22 +5,22 @@ using Archery.Shared.Models;
 namespace Archery.Shared.Services;
 
 /// <summary>
-/// Service for running YOLO inference using ONNX Runtime.
+/// Service for running Object Detection inference using ONNX Runtime.
 /// Handles model loading, inference, post-processing, and NMS filtering.
 /// </summary>
-public class YoloInferenceService : IYoloInferenceService
+public class ObjectDetectionService : IObjectDetectionService
 {
     private InferenceSession? _session;
-    private readonly YoloConfig _config;
+    private readonly ObjectDetectionConfig _config;
 
     /// <inheritdoc />
-    public YoloConfig Config => _config;
+    public ObjectDetectionConfig Config => _config;
 
-    public YoloInferenceService(string modelPath, YoloConfig config)
+    public ObjectDetectionService(string modelPath, ObjectDetectionConfig config)
     {
         if (!File.Exists(modelPath))
         {
-            throw new FileNotFoundException($"YOLO model not found at: {modelPath}");
+            throw new FileNotFoundException($"Object Detection model not found at: {modelPath}");
         }
 
         _config = config;
@@ -36,14 +36,14 @@ public class YoloInferenceService : IYoloInferenceService
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException($"Failed to load YOLO model: {ex.Message}", ex);
+            throw new InvalidOperationException($"Failed to load Object Detection model: {ex.Message}", ex);
         }
     }
 
     /// <summary>
-    /// Runs YOLO inference on an image and returns detections.
+    /// Runs inference on an image and returns detections.
     /// </summary>
-    public List<YoloDetection> Predict(byte[] imageBytes)
+    public List<ObjectDetectionResult> Predict(byte[] imageBytes)
     {
         if (_session == null)
         {
@@ -58,12 +58,12 @@ public class YoloInferenceService : IYoloInferenceService
         try
         {
             // 1. Preprocess image
-            System.Diagnostics.Debug.WriteLine("[YoloInferenceService] Starting inference...");
+            System.Diagnostics.Debug.WriteLine("[ObjectDetectionService] Starting inference...");
             var (inputTensor, origWidth, origHeight, scaleX, scaleY) =
-                YoloPreprocessingUtility.PreprocessImage(imageBytes, _config.InputSize);
+                ObjectDetectionPreprocessingUtility.PreprocessImage(imageBytes, _config.InputSize);
             
             System.Diagnostics.Debug.WriteLine(
-                $"[YoloInferenceService] Image preprocessed: {origWidth}x{origHeight} -> " +
+                $"[ObjectDetectionService] Image preprocessed: {origWidth}x{origHeight} -> " +
                 $"tensor shape [{string.Join(", ", inputTensor.Dimensions.ToArray())}]");
 
             // 2. Create inference input
@@ -73,81 +73,81 @@ public class YoloInferenceService : IYoloInferenceService
             };
 
             // 3. Run inference
-            System.Diagnostics.Debug.WriteLine("[YoloInferenceService] Running YOLO inference...");
+            System.Diagnostics.Debug.WriteLine("[ObjectDetectionService] Running Object Detection inference...");
             using var results = _session.Run(inputs);
             
-            System.Diagnostics.Debug.WriteLine($"[YoloInferenceService] Inference returned {results.Count} outputs");
+            System.Diagnostics.Debug.WriteLine($"[ObjectDetectionService] Inference returned {results.Count} outputs");
             foreach (var result in results)
             {
-                System.Diagnostics.Debug.WriteLine($"[YoloInferenceService] Output: {result.Name}");
+                System.Diagnostics.Debug.WriteLine($"[ObjectDetectionService] Output: {result.Name}");
             }
 
             // 4. Post-process outputs
             var detections = PostProcessResults(results, origWidth, origHeight, scaleX, scaleY);
 
-            System.Diagnostics.Debug.WriteLine($"[YoloInferenceService] ✓ Inference complete: {detections.Count} detections");
+            System.Diagnostics.Debug.WriteLine($"[ObjectDetectionService] ✓ Inference complete: {detections.Count} detections");
 
             // 5. Apply NMS (Non-Maximum Suppression)
             var filteredDetections = ApplyNms(detections, _config.NmsThreshold);
 
             System.Diagnostics.Debug.WriteLine(
-                $"[YoloInferenceService] ✓ After NMS: {filteredDetections.Count} detections");
+                $"[ObjectDetectionService] ✓ After NMS: {filteredDetections.Count} detections");
 
             return filteredDetections;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[YoloInferenceService] ✗ Inference failed: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"[YoloInferenceService] Stack: {ex.StackTrace}");
-            throw new InvalidOperationException($"YOLO inference failed: {ex.Message}", ex);
+            System.Diagnostics.Debug.WriteLine($"[ObjectDetectionService] ✗ Inference failed: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[ObjectDetectionService] Stack: {ex.StackTrace}");
+            throw new InvalidOperationException($"Object Detection inference failed: {ex.Message}", ex);
         }
     }
 
     /// <summary>
-    /// Post-processes YOLO model outputs into detection objects.
-    /// YOLO outputs shape: [1, 25, 8400] or similar
+    /// Post-processes model outputs into detection objects.
+    /// Output shape: [1, 25, 8400] or similar
     /// Each detection: [x, y, w, h, confidence, class_scores...]
     /// </summary>
-    private List<YoloDetection> PostProcessResults(
+    private List<ObjectDetectionResult> PostProcessResults(
         IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results,
         int originalWidth,
         int originalHeight,
         float scaleX,
         float scaleY)
     {
-        var detections = new List<YoloDetection>();
+        var detections = new List<ObjectDetectionResult>();
 
         // Get the output tensor (typically named "output0" or similar)
         var output = results.FirstOrDefault();
         if (output == null)
         {
-            System.Diagnostics.Debug.WriteLine("[YoloInferenceService] ✗ No output tensor found");
+            System.Diagnostics.Debug.WriteLine("[ObjectDetectionService] ✗ No output tensor found");
             return detections;
         }
 
-        System.Diagnostics.Debug.WriteLine($"[YoloInferenceService] Output name: {output.Name}");
+        System.Diagnostics.Debug.WriteLine($"[ObjectDetectionService] Output name: {output.Name}");
 
         var outputTensor = output.Value as DenseTensor<float>;
         if (outputTensor == null)
         {
-            System.Diagnostics.Debug.WriteLine("[YoloInferenceService] ✗ Output tensor is not DenseTensor<float>");
+            System.Diagnostics.Debug.WriteLine("[ObjectDetectionService] ✗ Output tensor is not DenseTensor<float>");
             return detections;
         }
 
         // Get dimensions: [1, num_classes+5, num_predictions]
         var dimensions = outputTensor.Dimensions.ToArray();
-        System.Diagnostics.Debug.WriteLine($"[YoloInferenceService] Output tensor dimensions: [{string.Join(", ", dimensions)}]");
+        System.Diagnostics.Debug.WriteLine($"[ObjectDetectionService] Output tensor dimensions: [{string.Join(", ", dimensions)}]");
         
         if (dimensions.Length < 3)
         {
-            System.Diagnostics.Debug.WriteLine($"[YoloInferenceService] ✗ Unexpected tensor dimensions: {dimensions.Length}");
+            System.Diagnostics.Debug.WriteLine($"[ObjectDetectionService] ✗ Unexpected tensor dimensions: {dimensions.Length}");
             return detections;
         }
 
         int numClasses = dimensions[1] - 5;
         int numPredictions = dimensions[2];
         
-        System.Diagnostics.Debug.WriteLine($"[YoloInferenceService] Classes: {numClasses}, Predictions: {numPredictions}");
+        System.Diagnostics.Debug.WriteLine($"[ObjectDetectionService] Classes: {numClasses}, Predictions: {numPredictions}");
 
         int detectedCount = 0;
         int filteredCount = 0;
@@ -207,7 +207,7 @@ public class YoloInferenceService : IYoloInferenceService
             float scaledH = h * scaleY;
 
             // Create detection object
-            var detection = new YoloDetection
+            var detection = new ObjectDetectionResult
             {
                 ClassId = classId,
                 ClassName = _config.ClassLabels.TryGetValue(classId, out var name) ? name : $"class_{classId}",
@@ -219,14 +219,14 @@ public class YoloInferenceService : IYoloInferenceService
             };
 
             System.Diagnostics.Debug.WriteLine(
-                $"[YoloInferenceService] ✓ Added detection: {detection.ClassName} " +
+                $"[ObjectDetectionService] ✓ Added detection: {detection.ClassName} " +
                 $"({detection.Confidence:P}) at ({detection.X:F1}, {detection.Y:F1}) [ClassId: {classId}]");
 
             detections.Add(detection);
         }
 
         // Log top 10 predictions
-        System.Diagnostics.Debug.WriteLine("[YoloInferenceService] TOP 10 PREDICTIONS (all, regardless of threshold):");
+        System.Diagnostics.Debug.WriteLine("[ObjectDetectionService] TOP 10 PREDICTIONS (all, regardless of threshold):");
         foreach (var pred in topPredictions)
         {
             var className = _config.ClassLabels.TryGetValue(pred.ClassId, out var name) ? name : $"class_{pred.ClassId}";
@@ -236,7 +236,7 @@ public class YoloInferenceService : IYoloInferenceService
         }
 
         System.Diagnostics.Debug.WriteLine(
-            $"[YoloInferenceService] Post-processing complete: " +
+            $"[ObjectDetectionService] Post-processing complete: " +
             $"detected={detectedCount}, filtered={filteredCount}, total={detections.Count}");
 
         return detections;
@@ -245,7 +245,7 @@ public class YoloInferenceService : IYoloInferenceService
     /// <summary>
     /// Applies Non-Maximum Suppression to remove overlapping detections.
     /// </summary>
-    private List<YoloDetection> ApplyNms(List<YoloDetection> detections, float nmsThreshold)
+    private List<ObjectDetectionResult> ApplyNms(List<ObjectDetectionResult> detections, float nmsThreshold)
     {
         if (detections.Count == 0)
         {
@@ -254,7 +254,7 @@ public class YoloInferenceService : IYoloInferenceService
 
         // Sort by confidence descending
         var sorted = detections.OrderByDescending(d => d.Confidence).ToList();
-        var kept = new List<YoloDetection>();
+        var kept = new List<ObjectDetectionResult>();
 
         while (sorted.Count > 0)
         {
@@ -277,7 +277,7 @@ public class YoloInferenceService : IYoloInferenceService
     /// <summary>
     /// Calculates Intersection over Union between two detections.
     /// </summary>
-    private float CalculateIou(YoloDetection det1, YoloDetection det2)
+    private float CalculateIou(ObjectDetectionResult det1, ObjectDetectionResult det2)
     {
         // Convert center coordinates to corner coordinates
         float x1_min = det1.X - det1.Width / 2;

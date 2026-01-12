@@ -8,19 +8,19 @@ using SixLabors.ImageSharp.Processing;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
 /// <summary>
-/// Utilities for preprocessing images for YOLO inference.
+/// Utilities for preprocessing images for Object Detection inference.
 /// </summary>
-public static class YoloPreprocessingUtility
+public static class ObjectDetectionPreprocessingUtility
 {
     /// <summary>
-    /// Preprocesses image bytes into a normalized tensor suitable for YOLO inference.
+    /// Preprocesses image bytes into a normalized tensor suitable for inference.
     /// </summary>
     /// <param name="imageBytes">Raw image bytes (JPEG/PNG).</param>
     /// <param name="inputSize">Target input size (default 640).</param>
     /// <returns>Preprocessed tensor in (1, 3, H, W) format with normalized float values.</returns>
     public static (DenseTensor<float> Tensor, int OriginalWidth, int OriginalHeight, float ScaleX, float ScaleY) PreprocessImage(byte[] imageBytes, int inputSize = 640)
     {
-        System.Diagnostics.Debug.WriteLine($"[YoloPreprocessing] Input image size: {imageBytes.Length} bytes");
+        System.Diagnostics.Debug.WriteLine($"[ObjectDetectionPreprocessing] Input image size: {imageBytes.Length} bytes");
         
         using var imageStream = new MemoryStream(imageBytes);
         using var image = Image.Load<Rgb24>(imageStream);
@@ -28,7 +28,7 @@ public static class YoloPreprocessingUtility
         var originalWidth = image.Width;
         var originalHeight = image.Height;
 
-        System.Diagnostics.Debug.WriteLine($"[YoloPreprocessing] Original image dimensions: {originalWidth}x{originalHeight}");
+        System.Diagnostics.Debug.WriteLine($"[ObjectDetectionPreprocessing] Original image dimensions: {originalWidth}x{originalHeight}");
 
         // Resize image to input size while maintaining aspect ratio
         image.Mutate(x => x.Resize(new ResizeOptions
@@ -38,13 +38,13 @@ public static class YoloPreprocessingUtility
             PadColor = Color.Black
         }));
 
-        System.Diagnostics.Debug.WriteLine($"[YoloPreprocessing] Resized to: {inputSize}x{inputSize}");
+        System.Diagnostics.Debug.WriteLine($"[ObjectDetectionPreprocessing] Resized to: {inputSize}x{inputSize}");
 
         // Calculate scale factors for post-processing
         float scaleX = (float)originalWidth / inputSize;
         float scaleY = (float)originalHeight / inputSize;
 
-        System.Diagnostics.Debug.WriteLine($"[YoloPreprocessing] Scale factors: X={scaleX:F4}, Y={scaleY:F4}");
+        System.Diagnostics.Debug.WriteLine($"[ObjectDetectionPreprocessing] Scale factors: X={scaleX:F4}, Y={scaleY:F4}");
 
         // Create tensor (1, 3, H, W)
         var tensor = new DenseTensor<float>(new[] { 1, 3, inputSize, inputSize });
@@ -61,7 +61,7 @@ public static class YoloPreprocessingUtility
             }
         }
 
-        System.Diagnostics.Debug.WriteLine($"[YoloPreprocessing] ? Tensor created: shape=[{string.Join(", ", tensor.Dimensions.ToArray())}]");
+        System.Diagnostics.Debug.WriteLine($"[ObjectDetectionPreprocessing] ? Tensor created: shape=[{string.Join(", ", tensor.Dimensions.ToArray())}]");
 
         return (tensor, originalWidth, originalHeight, scaleX, scaleY);
     }

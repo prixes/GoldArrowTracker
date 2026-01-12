@@ -56,8 +56,8 @@
         <!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
         <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
         
-        <!-- YOLO Model -->
-        <EmbeddedResource Include="ObjectModels\yolo11s.onnx" />
+        <!-- Object Detection Model -->
+        <EmbeddedResource Include="ObjectModels\object_detection_model.onnx" />
     </ItemGroup>
 
     <ItemGroup>

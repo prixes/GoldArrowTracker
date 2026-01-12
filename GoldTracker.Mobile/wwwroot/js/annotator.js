@@ -83,7 +83,7 @@ var annotator = {
         const dy = pos.y - centerY;
         const radius = Math.sqrt(dx * dx + dy * dy);
 
-        // Convert to bounding box for YOLO logic
+        // Convert to bounding box for Object Detection logic
         const box = {
             startX: centerX - radius,
             startY: centerY - radius,

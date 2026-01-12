@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Configurations\yoloConfig.json" />
+    <EmbeddedResource Include="Configurations\object_detection_config.json" />
   </ItemGroup>
 
 </Project>

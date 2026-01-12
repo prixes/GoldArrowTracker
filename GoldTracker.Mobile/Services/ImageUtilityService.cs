@@ -98,7 +98,7 @@ public class ImageUtilityService
         try
         {
             var bytes = await File.ReadAllBytesAsync(imagePath);
-            return YoloPreprocessingUtility.GetImageDimensions(bytes);
+            return ObjectDetectionPreprocessingUtility.GetImageDimensions(bytes);
         }
         catch
         {

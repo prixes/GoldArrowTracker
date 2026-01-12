@@ -17,7 +17,7 @@
                 Create Dataset
             </MudText>
             <MudText Typo="Typo.body2" Color="Color.Default" Class="mb-6">
-                Take or select a photo to create annotations for YOLO training.
+                Take or select a photo to create annotations for Object Detection training.
             </MudText>
 
             @if (_isLoading)
@@ -136,8 +136,8 @@
     {
         _dotNetObjectReference = DotNetObjectReference.Create(this);
         
-        // Populate _loadedClassLabels and _loadedClassColors from ImageProcessingService.YoloConfig.ClassLabels
-        var classLabelsDict = ImageProcessingService.YoloConfig.ClassLabels;
+        // Populate _loadedClassLabels and _loadedClassColors from ImageProcessingService.ObjectDetectionConfig.ClassLabels
+        var classLabelsDict = ImageProcessingService.ObjectDetectionConfig.ClassLabels;
         var maxClassId = classLabelsDict.Keys.Any() ? classLabelsDict.Keys.Max() : -1;
         _loadedClassLabels = new string[maxClassId + 1];
         _loadedClassColors = new string[maxClassId + 1];
