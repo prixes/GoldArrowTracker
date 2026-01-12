@@ -279,6 +279,37 @@ public class ImageProcessingService
     }
 
     /// <summary>
+    /// Crops an image based on normalized coordinates (0-1).
+    /// </summary>
+    public async Task<byte[]> CropImageAsync(byte[] imageBytes, double startXNorm, double startYNorm, double widthNorm, double heightNorm)
+    {
+        using var image = SixLabors.ImageSharp.Image.Load<Rgba32>(imageBytes);
+        image.Mutate(x => x.AutoOrient());
+        
+        int x = (int)(startXNorm * image.Width);
+        int y = (int)(startYNorm * image.Height);
+        int w = (int)(widthNorm * image.Width);
+        int h = (int)(heightNorm * image.Height);
+
+        Console.WriteLine($"[ImageProcessing] CropImageAsync: Image Size={image.Width}x{image.Height}");
+        Console.WriteLine($"[ImageProcessing] Crop Coordinates: x={x}, y={y}, w={w}, h={h}");
+
+        // Ensure bounds
+        x = Math.Max(0, x);
+        y = Math.Max(0, y);
+        w = Math.Min(w, image.Width - x);
+        h = Math.Min(h, image.Height - y);
+
+        if (w <= 0 || h <= 0) return Array.Empty<byte>();
+
+        image.Mutate(ctx => ctx.Crop(new SixLabors.ImageSharp.Rectangle(x, y, w, h)));
+
+        using var ms = new System.IO.MemoryStream();
+        await image.SaveAsJpegAsync(ms);
+        return ms.ToArray();
+    }
+
+    /// <summary>
     /// Flattens an image using perspective transformation based on corner points.
     /// Kept for backward compatibility but not used in YOLO workflow.
     /// </summary>

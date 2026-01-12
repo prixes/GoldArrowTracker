@@ -298,53 +298,147 @@
                 return;
             }
 
-            var naturalSize = await JSRuntime.InvokeAsync<ImageSize>("getImageNaturalSize", _imageElement);
-            if(naturalSize.Width == 0 || naturalSize.Height == 0) 
+            var timestamp = $"{DateTime.Now:yyyyMMdd_HHmmssfff}";
+
+            // --- 1. Macro Model (Targets) ---
+            var macroImageDir = Path.Combine("Export", "Macro_Model", "images");
+            var macroLabelDir = Path.Combine("Export", "Macro_Model", "labels");
+
+            // Filter for targets (Class 11)
+            var targets = _annotations.Where(a => a.ClassId == 11).ToList();
+            var targetStrings = new List<string>();
+            foreach (var t in targets)
             {
-                Snackbar.Add("Could not get image dimensions.", Severity.Error);
-                return;
+                var x_center = (t.StartX + t.EndX) / 2.0;
+                var y_center = (t.StartY + t.EndY) / 2.0;
+                var width = t.EndX - t.StartX;
+                var height = t.EndY - t.StartY;
+                targetStrings.Add($"0 {x_center:F6} {y_center:F6} {width:F6} {height:F6}"); 
             }
 
-            var yoloStrings = new List<string>();
-            foreach(var annotation in _annotations)
+            if (targetStrings.Any())
             {
-                // Coordinates are normalized (0 to 1) from JS
-                var x_center = (annotation.StartX + annotation.EndX) / 2.0;
-                var y_center = (annotation.StartY + annotation.EndY) / 2.0;
-                var width = annotation.EndX - annotation.StartX;
-                var height = annotation.EndY - annotation.StartY;
-
-                yoloStrings.Add($"{annotation.ClassId} {x_center:F6} {y_center:F6} {width:F6} {height:F6}");
+                var macroImagePath = await CameraService.SaveImageAsync(_originalImageBytes, $"{timestamp}.jpg", macroImageDir);
+                if (!string.IsNullOrEmpty(macroImagePath))
+                {
+                    var macroLabelPath = Path.Combine(Path.GetDirectoryName(macroImagePath)!.Replace("images", "labels"), $"{timestamp}.txt");
+                    Directory.CreateDirectory(Path.GetDirectoryName(macroLabelPath)!);
+                    await File.WriteAllTextAsync(macroLabelPath, string.Join("\n", targetStrings));
+                    CameraService.TriggerMediaScanner(macroLabelPath);
+                }
             }
 
-            var yoloAnnotationText = string.Join("\n", yoloStrings);
+            // --- 2. Micro Model (Arrows + Target Refinement) ---
+            var microImageDir = Path.Combine("Export", "Micro_Model", "images");
+            var microLabelDir = Path.Combine("Export", "Micro_Model", "labels");
             
-            var fileName = $"{DateTime.Now:yyyyMMdd_HHmmssfff}";
-            var imagePath = await CameraService.SaveImageAsync(_originalImageBytes, $"{fileName}.jpg", "GoldArrowTracker_Dataset");
+            // Get natural image size for boundary checks (approximate from annotations if needed, but safer to assume normalized)
+            // Annotations are normalized 0-1, so boundaries are 0 and 1.
+            double padding = 0.05; // 5% padding
 
-            if (string.IsNullOrEmpty(imagePath))
+            int cropIndex = 0;
+            foreach (var t in targets)
             {
-                Snackbar.Add("Failed to save image. Check logs for details.", Severity.Error);
-                return;
+                cropIndex++;
+                var cropFileName = $"{timestamp}_crop{cropIndex}";
+
+                // Calculate PADDED boundaries
+                double tW_raw = t.EndX - t.StartX;
+                double tH_raw = t.EndY - t.StartY;
+                
+                double padX = tW_raw * padding;
+                double padY = tH_raw * padding;
+
+                double cropStartX = Math.Max(0, t.StartX - padX);
+                double cropStartY = Math.Max(0, t.StartY - padY);
+                double cropEndX = Math.Min(1, t.EndX + padX);
+                double cropEndY = Math.Min(1, t.EndY + padY);
+
+                double cropW = cropEndX - cropStartX;
+                double cropH = cropEndY - cropStartY;
+
+                Console.WriteLine($"[DatasetCreation] Processing Target Crop {cropIndex}:");
+                Console.WriteLine($"  Original Box: {t.StartX:F4}, {t.StartY:F4} to {t.EndX:F4}, {t.EndY:F4}");
+                Console.WriteLine($"  Padded Box:   {cropStartX:F4}, {cropStartY:F4} to {cropEndX:F4}, {cropEndY:F4}");
+                Console.WriteLine($"  Crop Norm:    X={cropStartX:F4}, Y={cropStartY:F4}, W={cropW:F4}, H={cropH:F4}");
+                
+                if (cropW > 0.9 || cropH > 0.9)
+                {
+                    Console.WriteLine("  [WARNING] Crop covers >90% of the image. It may look like the original image.");
+                }
+
+                // 2.1 Crop Image (Padded)
+                var cropBytes = await ImageProcessingService.CropImageAsync(
+                    _originalImageBytes, 
+                    cropStartX, cropStartY, 
+                    cropW, cropH);
+
+                if (cropBytes.Length == 0) continue;
+
+                // 2.2 Save Crop
+                var microImagePath = await CameraService.SaveImageAsync(cropBytes, $"{cropFileName}.jpg", microImageDir);
+                if (string.IsNullOrEmpty(microImagePath)) continue;
+
+                // 2.3 Generate Labels for this Crop
+                var microStrings = new List<string>();
+
+                // A. Add the Target itself (Class 11) relative to this padded crop
+                // This helps the micro model find the center/structure
+                var tCenterX = (t.StartX + t.EndX) / 2.0;
+                var tCenterY = (t.StartY + t.EndY) / 2.0;
+
+                var tLocalX = (tCenterX - cropStartX) / cropW;
+                var tLocalY = (tCenterY - cropStartY) / cropH;
+                var tLocalW = tW_raw / cropW;
+                var tLocalH = tH_raw / cropH;
+                
+                microStrings.Add($"11 {tLocalX:F6} {tLocalY:F6} {tLocalW:F6} {tLocalH:F6}");
+
+
+                // B. Add Arrows (Classes 0-10) relative to this padded crop
+                // We include all arrows that fall inside the crop boundaries
+                var validArrows = _annotations
+                    .Where(a => a.ClassId != 11) // Arrows
+                    .Where(a => {
+                        var cX = (a.StartX + a.EndX) / 2.0;
+                        var cY = (a.StartY + a.EndY) / 2.0;
+                        return cX >= cropStartX && cX <= cropEndX && cY >= cropStartY && cY <= cropEndY;
+                    });
+
+                foreach (var a in validArrows)
+                {
+                    var aCenterX = (a.StartX + a.EndX) / 2.0;
+                    var aCenterY = (a.StartY + a.EndY) / 2.0;
+                    var aW = a.EndX - a.StartX;
+                    var aH = a.EndY - a.StartY;
+
+                    // Transform to local crop coordinates
+                    var x_local = (aCenterX - cropStartX) / cropW;
+                    var y_local = (aCenterY - cropStartY) / cropH;
+                    var w_local = aW / cropW;
+                    var h_local = aH / cropH;
+
+                    microStrings.Add($"{a.ClassId} {x_local:F6} {y_local:F6} {w_local:F6} {h_local:F6}");
+                }
+
+                // 2.4 Save Micro Labels
+                if (microStrings.Any())
+                {
+                    var microLabelPath = Path.Combine(Path.GetDirectoryName(microImagePath)!.Replace("images", "labels"), $"{cropFileName}.txt");
+                    Directory.CreateDirectory(Path.GetDirectoryName(microLabelPath)!);
+                    
+                    await File.WriteAllTextAsync(microLabelPath, string.Join("\n", microStrings));
+                    CameraService.TriggerMediaScanner(microLabelPath);
+                }
             }
 
-            var txtPath = Path.Combine(Path.GetDirectoryName(imagePath)!, $"{fileName}.txt");
-            
-            await File.WriteAllTextAsync(txtPath, yoloAnnotationText);
-            CameraService.TriggerMediaScanner(txtPath);
-
-#if ANDROID
-            var message = "Saved to Downloads/dataset";
-#else
-            var message = $"Saved to {imagePath}";
-#endif
-            Snackbar.Add(message, Severity.Success);
-            Console.WriteLine($"Saved annotation to {txtPath}");
+            Snackbar.Add($"Saved hierarchical dataset to Export/", Severity.Success);
             Reset();
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Error saving annotations: {ex.Message}", Severity.Error);
+            Console.WriteLine($"[DatasetCreation] Error: {ex}");
         }
     }
 

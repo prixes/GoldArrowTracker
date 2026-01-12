@@ -54,7 +54,20 @@ var annotator = {
         this.redraw(); // Redraw existing boxes
         this.ctx.strokeStyle = 'red';
         this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(this.startX, this.startY, pos.x - this.startX, pos.y - this.startY);
+
+        // Center-to-Radius logic
+        // Start point is the Center
+        const centerX = this.startX;
+        const centerY = this.startY;
+
+        // Distance is the Radius
+        const dx = pos.x - centerX;
+        const dy = pos.y - centerY;
+        const radius = Math.sqrt(dx * dx + dy * dy);
+
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        this.ctx.stroke();
     },
 
     stopDrawing: function (e) {
@@ -62,15 +75,25 @@ var annotator = {
         if (e.cancelable) e.preventDefault();
         this.isDrawing = false;
         const pos = this.getCanvasCoordinates(e);
+
+        // Center-to-Radius logic for Bounding Box
+        const centerX = this.startX;
+        const centerY = this.startY;
+        const dx = pos.x - centerX;
+        const dy = pos.y - centerY;
+        const radius = Math.sqrt(dx * dx + dy * dy);
+
+        // Convert to bounding box for YOLO logic
         const box = {
-            startX: Math.min(this.startX, pos.x),
-            startY: Math.min(this.startY, pos.y),
-            endX: Math.max(this.startX, pos.x),
-            endY: Math.max(this.startY, pos.y)
+            startX: centerX - radius,
+            startY: centerY - radius,
+            endX: centerX + radius,
+            endY: centerY + radius
         };
 
         // Ensure box has a size
-        if (box.endX - box.startX > 5 && box.endY - box.startY > 5) {
+        if (radius > 2) {
+            console.log("Canvas Size:", this.canvas.width, this.canvas.height);
             this.dotNetHelper.invokeMethodAsync('AddBox',
                 box.startX / this.canvas.width,
                 box.startY / this.canvas.height,
@@ -119,9 +142,18 @@ var annotator = {
             const ex = box.endX * this.canvas.width;
             const ey = box.endY * this.canvas.height;
 
+            const width = ex - sx;
+            const height = ey - sy;
+            const radius = Math.max(width, height) / 2;
+            const centerX = sx + width / 2;
+            const centerY = sy + height / 2;
+
             this.ctx.strokeStyle = box.color || 'lime';
             this.ctx.lineWidth = 2;
-            this.ctx.strokeRect(sx, sy, ex - sx, ey - sy);
+
+            this.ctx.beginPath();
+            this.ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+            this.ctx.stroke();
 
             this.ctx.fillStyle = box.color || 'lime';
             this.ctx.font = 'bold 16px sans-serif';
