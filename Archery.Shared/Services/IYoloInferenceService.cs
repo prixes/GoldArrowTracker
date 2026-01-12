@@ -10,6 +10,11 @@ using Archery.Shared.Models;
 public interface IYoloInferenceService : IDisposable
 {
     /// <summary>
+    /// Gets the YOLO configuration used by the service.
+    /// </summary>
+    YoloConfig Config { get; }
+
+    /// <summary>
     /// Runs YOLO inference on an image and returns detections.
     /// </summary>
     List<YoloDetection> Predict(byte[] imageBytes);

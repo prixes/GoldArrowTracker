@@ -23,6 +23,11 @@ public class ImageProcessingService
     private readonly YoloConfig _yoloConfig;
 
     /// <summary>
+    /// Gets the YOLO configuration used by the service.
+    /// </summary>
+    public YoloConfig YoloConfig => _yoloConfig;
+
+    /// <summary>
     /// Initializes the service with optional YOLO model path.
     /// If no model path provided, attempts to load from default location.
     /// </summary>

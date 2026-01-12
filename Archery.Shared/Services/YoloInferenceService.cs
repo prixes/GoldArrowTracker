@@ -13,6 +13,9 @@ public class YoloInferenceService : IYoloInferenceService
     private InferenceSession? _session;
     private readonly YoloConfig _config;
 
+    /// <inheritdoc />
+    public YoloConfig Config => _config;
+
     public YoloInferenceService(string modelPath, YoloConfig config)
     {
         if (!File.Exists(modelPath))

@@ -162,15 +162,40 @@ public class CameraService
     {
         try
         {
-            // For Android 13+ (API 33+), MEDIA_IMAGES permission
-            // For older versions, READ_EXTERNAL_STORAGE
             var status = await Permissions.CheckStatusAsync<Permissions.StorageRead>();
-
             if (status != PermissionStatus.Granted)
             {
                 status = await Permissions.RequestAsync<Permissions.StorageRead>();
             }
 
+            if (status != PermissionStatus.Granted) return false;
+
+            var writeStatus = await Permissions.CheckStatusAsync<Permissions.StorageWrite>();
+            if (writeStatus != PermissionStatus.Granted)
+            {
+                writeStatus = await Permissions.RequestAsync<Permissions.StorageWrite>();
+            }
+
+            return writeStatus == PermissionStatus.Granted;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Requests write storage permission from the user.
+    /// </summary>
+    public async Task<bool> RequestStorageWritePermissionAsync()
+    {
+        try
+        {
+            var status = await Permissions.CheckStatusAsync<Permissions.StorageWrite>();
+            if (status != PermissionStatus.Granted)
+            {
+                status = await Permissions.RequestAsync<Permissions.StorageWrite>();
+            }
             return status == PermissionStatus.Granted;
         }
         catch
@@ -223,6 +248,66 @@ public class CameraService
         catch
         {
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Saves an image to a specified subdirectory in a public folder.
+    /// </summary>
+    /// <param name="imageData">The image data as a byte array.</param>
+    /// <param name="fileName">The name of the file to save.</param>
+    /// <param name="subdirectory">The subdirectory to save the file in.</param>
+    /// <returns>The full path to the saved file, or null if saving fails.</returns>
+    public async Task<string?> SaveImageAsync(byte[] imageData, string fileName, string subdirectory)
+    {
+        try
+        {
+#if ANDROID
+            var downloadsPath = Android.OS.Environment.GetExternalStoragePublicDirectory(Android.OS.Environment.DirectoryDownloads);
+            var documentsPath = downloadsPath?.AbsolutePath ?? "/storage/emulated/0/Download";
+            var subfolderPath = Path.Combine(documentsPath, subdirectory);
+#else
+            var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            var subfolderPath = Path.Combine(documentsPath, subdirectory);
+#endif
+
+            if (!Directory.Exists(subfolderPath))
+            {
+                Console.WriteLine($"Creating directory: {subfolderPath}");
+                Directory.CreateDirectory(subfolderPath);
+            }
+
+            var localFilePath = Path.Combine(subfolderPath, fileName);
+            Console.WriteLine($"Writing file to: {localFilePath}");
+            await File.WriteAllBytesAsync(localFilePath, imageData);
+            Console.WriteLine($"Successfully wrote file to: {localFilePath}");
+            
+            TriggerMediaScanner(localFilePath);
+            
+            return localFilePath;
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine($"Error saving image: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Notifies the OS that a new file has been created so it appears in gallery/file explorers.
+    /// </summary>
+    public void TriggerMediaScanner(string filePath)
+    {
+        try
+        {
+#if ANDROID
+            var context = Android.App.Application.Context;
+            Android.Media.MediaScannerConnection.ScanFile(context, new string[] { filePath }, null, null);
+#endif
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error triggering media scanner: {ex.Message}");
         }
     }
 }

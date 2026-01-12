@@ -11,10 +11,10 @@
     {
         <!-- Selection Screen -->
         <MudPaper Elevation="0" Class="px-4 py-6">
-            <MudText Variant="Variant.H3" GutterBottom="true" Class="font-weight-bold">
+            <MudText Typo="Typo.h3" GutterBottom="true" Class="font-weight-bold">
                 Capture Target
             </MudText>
-            <MudText Variant="Variant.Body2" Color="Color.Default" Class="mb-6">
+            <MudText Typo="Typo.body2" Color="Color.Default" Class="mb-6">
                 Take or select a photo for automatic YOLO detection
             </MudText>
 
@@ -28,7 +28,7 @@
                 @if (!ImageProcessingService.IsModelAvailable)
                 {
                     <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-6">
-                        <MudText Variant="Variant.Caption">
+                        <MudText Typo="Typo.caption">
                             YOLO model not found. Please ensure yolo11s.onnx is available.
                         </MudText>
                     </MudAlert>
@@ -36,7 +36,7 @@
                 else
                 {
                     <MudAlert Severity="Severity.Success" Dense="true" Class="mb-6">
-                        <MudText Variant="Variant.Caption">
+                        <MudText Typo="Typo.caption">
                             YOLO model loaded successfully
                         </MudText>
                     </MudAlert>
@@ -46,24 +46,24 @@
                     <!-- Action Cards -->
                     <div Class="cursor-pointer d-flex align-center gap-4 px-4 py-3" @onclick="CapturePhotoAsync" Style="transition: all 0.2s ease; border-radius: 6px; border: 1px solid var(--mud-palette-lines-default); background-color: var(--mud-palette-surface);">
                         <MudStack Style="flex: 1;">
-                            <MudText Variant="Variant.H6" Class="font-weight-bold">Take Photo</MudText>
-                            <MudText Variant="Variant.Body2" Color="Color.Default">Capture & Analyze</MudText>
+                            <MudText Typo="Typo.h6" Class="font-weight-bold">Take Photo</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Default">Capture & Analyze</MudText>
                         </MudStack>
                         <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Capture</MudButton>
                     </div>
 
                     <div Class="cursor-pointer d-flex align-center gap-4 px-4 py-3" @onclick="PickPhotoAsync" Style="transition: all 0.2s ease; border-radius: 6px; border: 1px solid var(--mud-palette-lines-default); background-color: var(--mud-palette-surface);">
                         <MudStack Style="flex: 1;">
-                            <MudText Variant="Variant.H6" Class="font-weight-bold">From Gallery</MudText>
-                            <MudText Variant="Variant.Body2" Color="Color.Default">Select & Analyze</MudText>
+                            <MudText Typo="Typo.h6" Class="font-weight-bold">From Gallery</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Default">Select & Analyze</MudText>
                         </MudStack>
                         <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Select</MudButton>
                     </div>
 
                     <div Class="cursor-pointer d-flex align-center gap-4 px-4 py-3" @onclick="BrowseStorageAsync" Style="transition: all 0.2s ease; border-radius: 6px; border: 1px solid var(--mud-palette-lines-default); background-color: var(--mud-palette-surface);">
                         <MudStack Style="flex: 1;">
-                            <MudText Variant="Variant.H6" Class="font-weight-bold">Browse Files</MudText>
-                            <MudText Variant="Variant.Body2" Color="Color.Default">Browse & Analyze</MudText>
+                            <MudText Typo="Typo.h6" Class="font-weight-bold">Browse Files</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Default">Browse & Analyze</MudText>
                         </MudStack>
                         <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Browse</MudButton>
                     </div>
@@ -73,7 +73,7 @@
                 @if (_storedImages.Any())
                 {
                     <MudDivider Class="my-6" />
-                    <MudText Variant="Variant.Subtitle2" Class="mb-4 font-weight-bold">Recent Images</MudText>
+                    <MudText Typo="Typo.subtitle2" Class="mb-4 font-weight-bold">Recent Images</MudText>
 
                     <MudGrid Spacing="1">
                         @foreach (var imagePath in _storedImages.Take(4))
@@ -123,7 +123,7 @@
             {
                 <MudStack Spacing="3" Class="mb-6">
                     <MudPaper Elevation="0" Class="pa-4" Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px;">
-                        <MudText Variant="Variant.H4" Color="Color.Surface" Class="font-weight-bold">
+                        <MudText Typo="Typo.h4" Color="Color.Surface" Class="font-weight-bold">
                             Total Score: @_analysisResult.TotalScore
                         </MudText>
                     </MudPaper>
@@ -131,26 +131,26 @@
                     @if (_analysisResult.Status == AnalysisStatus.Success)
                     {
                         <div Class="pa-4" Style="background: #f5f5f5; border-radius: 12px;">
-                            <MudText Variant="Variant.Subtitle2" Class="font-weight-bold mb-2">Target Detection</MudText>
-                            <MudText Variant="Variant.Body2" Color="Color.Default">
+                            <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2">Target Detection</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Default">
                                 Center: (@_analysisResult.TargetCenter.X.ToString("F1"), @_analysisResult.TargetCenter.Y.ToString("F1"))
                             </MudText>
-                            <MudText Variant="Variant.Body2" Color="Color.Default">
+                            <MudText Typo="Typo.body2" Color="Color.Default">
                                 Radius: @_analysisResult.TargetRadius.ToString("F1") px
                             </MudText>
                         </div>
 
-                        <MudText Variant="Variant.Subtitle2" Class="font-weight-bold mt-4">Detected Arrows (@_analysisResult.ArrowScores.Count)</MudText>
+                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold mt-4">Detected Arrows (@_analysisResult.ArrowScores.Count)</MudText>
                         
                         @foreach (var arrow in _analysisResult.ArrowScores)
                         {
                             <div Class="pa-3" Style="@GetArrowStyle(arrow)">
                                 <MudStack Row="true" Spacing="2">
                                     <MudStack Style="flex: 1;">
-                                        <MudText Variant="Variant.Body2" Class="font-weight-bold">
+                                        <MudText Typo="Typo.body2" Class="font-weight-bold">
                                             Ring @arrow.Ring - @arrow.Points Points
                                         </MudText>
-                                        <MudText Variant="Variant.Caption" Color="Color.Default">
+                                        <MudText Typo="Typo.caption" Color="Color.Default">
                                             Distance: @arrow.DistanceFromCenter.ToString("F1") px
                                         </MudText>
                                     </MudStack>
@@ -320,13 +320,13 @@
                 _annotatedImageBase64 = _originalImageBase64; // Fallback if no analysis result or original image
             }
 
-            if (_analysisResult.Status == AnalysisStatus.Success)
+            if (_analysisResult?.Status == AnalysisStatus.Success)
             {
                 Snackbar.Add("Analysis complete!", Severity.Success);
             }
             else
             {
-                if (!string.IsNullOrEmpty(_analysisResult.ErrorMessage))
+                if (_analysisResult != null && !string.IsNullOrEmpty(_analysisResult.ErrorMessage))
                 {
                     Snackbar.Add(_analysisResult.ErrorMessage, Severity.Warning);
                 }
