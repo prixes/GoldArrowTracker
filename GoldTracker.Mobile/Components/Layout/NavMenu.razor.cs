@@ -1,22 +1,38 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Routing;
 using MudBlazor;
 
 namespace GoldTracker.Mobile.Components.Layout
 {
-    public partial class NavMenu
+    public partial class NavMenu : IDisposable
     {
         [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
-        private MudBlazor.Color GetNavLinkColor(string href)
+        protected override void OnInitialized()
         {
-            return CurrentUri.Contains(href) && href != "" ? MudBlazor.Color.Tertiary : MudBlazor.Color.Primary;
+            NavigationManager.LocationChanged += OnLocationChanged;
         }
 
-        private MudBlazor.Color GetTextColor(string href)
+        private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
         {
-            return CurrentUri.Contains(href) && href != "" ? MudBlazor.Color.Tertiary : MudBlazor.Color.Primary;
+            StateHasChanged();
         }
 
-        private string CurrentUri => NavigationManager.Uri.Replace(NavigationManager.BaseUri, "");
+        private bool IsActive(string href, NavLinkMatch match = NavLinkMatch.Prefix)
+        {
+            var relativePath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).ToLower();
+            
+            if (match == NavLinkMatch.All)
+            {
+                return string.IsNullOrEmpty(relativePath);
+            }
+
+            return relativePath.StartsWith(href.ToLower(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        public void Dispose()
+        {
+            NavigationManager.LocationChanged -= OnLocationChanged;
+        }
     }
 }

@@ -3,35 +3,35 @@
 
 <MudGrid Class="bottom-nav-bar align-content-center" Justify="Justify.SpaceAround" Spacing="0">
     <MudItem xs="3">
-        <MudNavLink Href="home" Match="NavLinkMatch.All" Class="nav-link align-content-center" ActiveClass="active-nav-link">
-            <MudStack AlignItems="AlignItems.Center" Spacing="0">
-                <MudIconButton Icon="@Icons.Material.Filled.Home" Size="Size.Small" Color="@GetNavLinkColor("home")" />
-                <MudText Color="@GetTextColor("home")">Home</MudText>
+        <NavLink href="" Match="NavLinkMatch.All" Class="nav-link" ActiveClass="active-nav-item">
+            <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                <MudIcon Icon="@Icons.Material.Filled.Home" Size="Size.Small" Style="@(IsActive("", NavLinkMatch.All) ? "color: #FFD700;" : "color: inherit;")" />
+                <MudText Style="@(IsActive("", NavLinkMatch.All) ? "color: #FFD700;" : "color: inherit;")">Home</MudText>
             </MudStack>
-        </MudNavLink>
+        </NavLink>
     </MudItem>
     <MudItem xs="3">
-        <MudNavLink Href="target-capture" Class="nav-link align-content-center" ActiveClass="active-nav-link">
-            <MudStack AlignItems="AlignItems.Center" Spacing="0">
-                <MudIconButton Icon="@Icons.Material.Filled.Camera" Size="Size.Small" Color="@GetNavLinkColor("target-capture")" />
-                <MudText Color="@GetTextColor("target-capture")">Capture</MudText>
+        <NavLink href="target-capture" Match="NavLinkMatch.Prefix" Class="nav-link" ActiveClass="active-nav-item">
+            <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                <MudIcon Icon="@Icons.Material.Filled.Camera" Size="Size.Small" Style="@(IsActive("target-capture") ? "color: #FFD700;" : "color: inherit;")" />
+                <MudText Style="@(IsActive("target-capture") ? "color: #FFD700;" : "color: inherit;")">Capture</MudText>
             </MudStack>
-        </MudNavLink>
+        </NavLink>
     </MudItem>
     <MudItem xs="3">
-        <MudNavLink Href="dataset-creation" Class="nav-link align-content-center" ActiveClass="active-nav-link">
-            <MudStack AlignItems="AlignItems.Center" Spacing="0">
-                <MudIconButton Icon="@Icons.Material.Filled.AddAPhoto" Size="Size.Small" Color="@GetNavLinkColor("dataset-creation")" />
-                <MudText Color="@GetTextColor("dataset-creation")">Dataset</MudText>
+        <NavLink href="dataset-creation" Match="NavLinkMatch.Prefix" Class="nav-link" ActiveClass="active-nav-item">
+            <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                <MudIcon Icon="@Icons.Material.Filled.AddAPhoto" Size="Size.Small" Style="@(IsActive("dataset-creation") ? "color: #FFD700;" : "color: inherit;")" />
+                <MudText Style="@(IsActive("dataset-creation") ? "color: #FFD700;" : "color: inherit;")">Dataset</MudText>
             </MudStack>
-        </MudNavLink>
+        </NavLink>
     </MudItem>
     <MudItem xs="3">
-        <MudNavLink Href="settings" Class="nav-link align-content-center" ActiveClass="active-nav-link">
-            <MudStack AlignItems="AlignItems.Center" Spacing="0">
-                <MudIconButton Icon="@Icons.Material.Filled.Settings" Size="Size.Small" Color="@GetNavLinkColor("settings")" />
-                <MudText Color="@GetTextColor("settings")">Settings</MudText>
+        <NavLink href="settings" Match="NavLinkMatch.Prefix" Class="nav-link" ActiveClass="active-nav-item">
+            <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Small" Style="@(IsActive("settings") ? "color: #FFD700;" : "color: inherit;")" />
+                <MudText Style="@(IsActive("settings") ? "color: #FFD700;" : "color: inherit;")">Settings</MudText>
             </MudStack>
-        </MudNavLink>
+        </NavLink>
     </MudItem>
 </MudGrid>
