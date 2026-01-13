@@ -237,16 +237,18 @@
         };
     }
 
-    private void SetSelectedMode(string mode)
+    private async Task SetSelectedMode(string mode)
     {
         _selectedMode = mode;
+        await JSRuntime.InvokeVoidAsync("annotator.deselect");
         StateHasChanged();
     }
 
-    private void SetSelectedScore(int score)
+    private async Task SetSelectedScore(int score)
     {
         _selectedMode = "arrow";
         _selectedArrowScore = score;
+        await JSRuntime.InvokeVoidAsync("annotator.deselect");
         StateHasChanged();
     }
 
@@ -349,6 +351,17 @@
 
         await JSRuntime.InvokeVoidAsync("annotator.addBox", boxJs);
         StateHasChanged();
+    }
+    public void UpdateBox(int index, double startX, double startY, double endX, double endY)
+    {
+        if (index >= 0 && index < _annotations.Count)
+        {
+            _annotations[index].StartX = startX;
+            _annotations[index].StartY = startY;
+            _annotations[index].EndX = endX;
+            _annotations[index].EndY = endY;
+            StateHasChanged();
+        }
     }
     
     private async Task SaveAnnotationsAsync()
