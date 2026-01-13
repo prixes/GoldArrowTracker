@@ -1,6 +1,4 @@
 @inherits LayoutComponentBase
-@inject IJSRuntime JS
-@inject NavigationManager NavigationManager
 @using MudBlazor
 <MudThemeProvider />
 <MudPopoverProvider />
@@ -19,17 +17,10 @@
 <div class="bottom-nav bottom-nav-background-wrapper">
     <NavMenu />
 </div>
-@code {
-
-    private async Task GoBack()
-    {
-        await JS.InvokeVoidAsync("goBack");
-    }
-    private string CurrentUri => NavigationManager.Uri.Replace(NavigationManager.BaseUri, "");
-}
 
 <script>
     function goBack() {
         window.history.back();
     }
 </script>
+

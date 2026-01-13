@@ -1,5 +1,4 @@
 ﻿@page "/"
-@inject NavigationManager Navigation
 
 <MudText Typo="Typo.h4" GutterBottom="true">Gold Arrow Tracker</MudText>
 <MudText Typo="Typo.subtitle1" Class="mb-4">AI-powered archery scoring companion!</MudText>
@@ -29,9 +28,3 @@
     </MudItem>
 </MudGrid>
 
-@code {
-    private void NavigateToCapture()
-    {
-        Navigation.NavigateTo("/target-capture");
-    }
-}

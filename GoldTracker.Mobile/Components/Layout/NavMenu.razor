@@ -35,19 +35,3 @@
         </MudNavLink>
     </MudItem>
 </MudGrid>
-
-
-@inject NavigationManager NavigationManager
-@code {
-    private Color GetNavLinkColor(string href)
-    {
-        return CurrentUri.Contains(href) && href != "" ? Color.Tertiary : Color.Primary;
-    }
-
-    private Color GetTextColor(string href)
-    {
-        return CurrentUri.Contains(href) && href != "" ? Color.Tertiary : Color.Primary;
-    }
-
-    private string CurrentUri => NavigationManager.Uri.Replace(NavigationManager.BaseUri, "");
-}

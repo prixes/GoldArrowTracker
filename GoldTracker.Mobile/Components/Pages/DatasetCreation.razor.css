@@ -1,0 +1,31 @@
+.archery-container {
+    max-width: 600px !important;
+    margin: auto;
+}
+
+.archery-themed-card {
+    border-top: 4px solid var(--mud-palette-primary) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.archery-themed-card::after {
+    content: "";
+    position: absolute;
+    top: -50px;
+    right: -50px;
+    width: 100px;
+    height: 100px;
+    background: radial-gradient(circle, #FFD700 20%, #FF0000 40%, #2196F3 60%, #333333 80%, #FFFFFF 100%);
+    opacity: 0.1;
+    border-radius: 50%;
+}
+
+.image-section {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    border: 2px solid #333;
+}
+
+.archery-panel {
+    backdrop-filter: blur(8px);
+}

@@ -77,4 +77,34 @@
       <Folder Include="wwwroot\lib\" />
     </ItemGroup>
 
+    <ItemGroup>
+        <Compile Update="Components\Layout\MainLayout.razor.cs">
+            <DependentUpon>MainLayout.razor</DependentUpon>
+        </Compile>
+        <Compile Update="Components\Layout\NavMenu.razor.cs">
+            <DependentUpon>NavMenu.razor</DependentUpon>
+        </Compile>
+        <Compile Update="Components\Pages\Home.razor.cs">
+            <DependentUpon>Home.razor</DependentUpon>
+        </Compile>
+        <Compile Update="Components\Pages\TargetCapture.razor.cs">
+            <DependentUpon>TargetCapture.razor</DependentUpon>
+        </Compile>
+        <Compile Update="Components\Pages\DatasetCreation.razor.cs">
+            <DependentUpon>DatasetCreation.razor</DependentUpon>
+        </Compile>
+        <Content Update="Components\Layout\MainLayout.razor.css">
+            <DependentUpon>MainLayout.razor</DependentUpon>
+        </Content>
+        <Content Update="Components\Layout\NavMenu.razor.css">
+            <DependentUpon>NavMenu.razor</DependentUpon>
+        </Content>
+        <Content Update="Components\Pages\DatasetCreation.razor.css">
+            <DependentUpon>DatasetCreation.razor</DependentUpon>
+        </Content>
+
+    </ItemGroup>
+
+
+
 </Project>
