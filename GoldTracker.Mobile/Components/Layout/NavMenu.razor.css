@@ -36,7 +36,19 @@
 
 .nav-link.active-nav-item {
     color: #FFD700 !important;
-    /* Target Gold for active state - Forced */
-    background-color: rgba(0, 0, 0, 0.1);
-    /* Subtle active background */
+    /* Target Gold */
+    background: rgba(255, 215, 0, 0.15);
+    /* Gold tint glass */
+    border-radius: 20px;
+    /* Pill shape */
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    /* Subtle gold border */
+    margin-top: 4px;
+    margin-bottom: 4px;
+    height: calc(100% - 8px);
+    /* Adjust for margins */
+    width: 80%;
+    /* Don't stretch full width */
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.1);
 }

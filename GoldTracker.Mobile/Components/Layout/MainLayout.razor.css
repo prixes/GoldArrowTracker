@@ -71,3 +71,50 @@ main {
 .bottom-nav {
     background-color: transparent !important;
 }
+
+/* --- New Design System: Forest Glass --- */
+
+/* 1. Global Background */
+body {
+    background: linear-gradient(135deg, #2D3E38 0%, #1A2623 100%);
+    /* Deep Forest Gradient */
+    background-attachment: fixed;
+    color: #E0E0E0;
+    font-family: 'Segoe UI', 'Roboto', 'Helvetica', sans-serif;
+    overflow-x: hidden;
+}
+
+/* 2. Glassmorphism Utilities */
+.glass-panel {
+    background: rgba(60, 80, 70, 0.4);
+    /* Low opacity forest green */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    border-radius: 16px !important;
+    /* Rounder corners for modern feel */
+}
+
+/* High emphasis glass for active elements or headers */
+.glass-panel-heavy {
+    background: rgba(60, 80, 70, 0.65);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* 3. Text Typography Overrides */
+.text-gold {
+    color: #FFD700 !important;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.text-white-dim {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.text-white {
+    color: #FFFFFF !important;
+}
