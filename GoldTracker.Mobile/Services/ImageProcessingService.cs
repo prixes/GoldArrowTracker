@@ -106,65 +106,75 @@ public class ImageProcessingService
     /// </summary>
     public async Task<string> DrawDetectionsOnImageAsync(byte[] imageBytes, TargetAnalysisResult analysisResult)
     {
-        using var image = SixLabors.ImageSharp.Image.Load<Rgba32>(imageBytes);
+#if ANDROID
+        var annotatedBytes = await GoldTracker.Mobile.Platforms.Android.AndroidImageProcessor.DrawDetectionsAsync(imageBytes, analysisResult);
+        return Convert.ToBase64String(annotatedBytes);
+#else
+        return await Task.Run(async () => {
+            using var image = SixLabors.ImageSharp.Image.Load<Rgba32>(imageBytes);
 
-        if (analysisResult.Status != AnalysisStatus.Success)
-        {
-            // return original image if analysis failed
-            return Convert.ToBase64String(imageBytes);
-        }
-
-        var font = await GetFontAsync();
-
-        // Draw all detections with a yellow ring
-        foreach (var detection in analysisResult.Detections)
-        {
-            // Create an ellipse from the bounding box
-            var ellipse = new EllipsePolygon(detection.X, detection.Y, detection.Width / 2, detection.Height / 2);
-            image.Mutate(x => x.Draw(Color.Yellow, 2, ellipse)); // Yellow color, 2px thick line
-
-            // Optionally add a label for the detected object class
-            var labelText = $"{detection.ClassName} ({detection.Confidence:P0})"; // e.g., "target (95%)"
-            // Position the label above the bounding box
-            var labelTextLocation = new SixLabors.ImageSharp.PointF(detection.X - detection.Width / 2, detection.Y - detection.Height / 2 - 20); 
-            
-            var labelTextOptions = new RichTextOptions(font)
+            if (analysisResult.Status != AnalysisStatus.Success)
             {
-                Origin = labelTextLocation,
-                HorizontalAlignment = SixLabors.Fonts.HorizontalAlignment.Left
-            };
-            image.Mutate(x => x.DrawText(labelTextOptions, labelText, Color.Yellow));
-        }
+                // return original image if analysis failed
+                return Convert.ToBase64String(imageBytes);
+            }
 
-        // Draw target center and radius if detected
-        if (analysisResult.TargetRadius > 0)
-        {
-            var targetCenterMarker = new EllipsePolygon(analysisResult.TargetCenter.X, analysisResult.TargetCenter.Y, 10);
-            image.Mutate(x => x.Draw(Color.Blue, 4, targetCenterMarker));
-            var targetCircle = new EllipsePolygon(analysisResult.TargetCenter.X, analysisResult.TargetCenter.Y, analysisResult.TargetRadius);
-            image.Mutate(x => x.Draw(Color.Blue, 4, targetCircle));
-        }
+            var font = await GetFontAsync();
 
-        // Draw arrows and scores
-        foreach (var arrow in analysisResult.ArrowScores)
-        {
-            var arrowPoint = new EllipsePolygon(arrow.Detection.CenterX, arrow.Detection.CenterY, 5);
-            image.Mutate(x => x.Draw(Color.Red, 3, arrowPoint));
+            // Draw all detections (rings only)
+            foreach (var detection in analysisResult.Detections)
+            {
+                if (detection.IsTargetFace) continue; // Redundant
 
-            var scoreText = arrow.Points.ToString();
-            var textLocation = new SixLabors.ImageSharp.PointF(arrow.Detection.CenterX + 10, arrow.Detection.CenterY - 10);
+                // Create an ellipse from the bounding box
+                var ellipse = new EllipsePolygon(detection.X, detection.Y, detection.Width / 2, detection.Height / 2);
+                
+                // Draw with contrast (outline)
+                image.Mutate(x => x.Draw(Color.Black.WithAlpha(0.5f), 4, ellipse));
+                image.Mutate(x => x.Draw(Color.Green, 2, ellipse));
+            }
+
+            // Draw target center and radius if detected
+            if (analysisResult.TargetRadius > 0)
+            {
+                var targetCenterMarker = new EllipsePolygon(analysisResult.TargetCenter.X, analysisResult.TargetCenter.Y, 10);
+                image.Mutate(x => x.Draw(Color.Cyan, 4, targetCenterMarker));
+                var targetCircle = new EllipsePolygon(analysisResult.TargetCenter.X, analysisResult.TargetCenter.Y, analysisResult.TargetRadius);
+                image.Mutate(x => x.Draw(Color.Cyan, 4, targetCircle));
+            }
+
+            // Draw arrows and scores
+            foreach (var arrow in analysisResult.ArrowScores)
+            {
+                float x = arrow.Detection.CenterX;
+                float y = arrow.Detection.CenterY;
+                float size = 12;
+
+                // Draw thin plus sign
+                image.Mutate(ctx => ctx.DrawLines(Color.Black.WithAlpha(0.6f), 2, new PointF(x - size, y), new PointF(x + size, y)));
+                image.Mutate(ctx => ctx.DrawLines(Color.Black.WithAlpha(0.6f), 2, new PointF(x, y - size), new PointF(x, y + size)));
+                
+                image.Mutate(ctx => ctx.DrawLines(Color.Red, 1, new PointF(x - size, y), new PointF(x + size, y)));
+                image.Mutate(ctx => ctx.DrawLines(Color.Red, 1, new PointF(x, y - size), new PointF(x, y + size)));
+
+                var scoreText = $"{arrow.Points} ({arrow.Detection.Confidence:P0})";
+                var textLocation = new SixLabors.ImageSharp.PointF(arrow.Detection.CenterX + 20, arrow.Detection.CenterY - 20);
+                
+                var textOptions = new RichTextOptions(font) 
+                { 
+                    Origin = textLocation
+                };
+
+                image.Mutate(x => x.DrawText(textOptions, scoreText, Color.Black));
+                var offsetOptions = new RichTextOptions(textOptions) { Origin = new PointF(textLocation.X - 1, textLocation.Y - 1) };
+                image.Mutate(x => x.DrawText(offsetOptions, scoreText, Color.White));
+            }
             
-            var textOptions = new RichTextOptions(font) 
-            { 
-                Origin = textLocation
-            };
-
-            image.Mutate(x => x.DrawText(textOptions, scoreText, Color.White));
-        }
-        
-        using var ms = new System.IO.MemoryStream();
-        await image.SaveAsJpegAsync(ms);
-        return Convert.ToBase64String(ms.ToArray());
+            using var ms = new System.IO.MemoryStream();
+            await image.SaveAsJpegAsync(ms);
+            return Convert.ToBase64String(ms.ToArray());
+        });
+#endif
     }
 
     private async Task<SixLabors.Fonts.Font> GetFontAsync()
@@ -260,6 +270,69 @@ public class ImageProcessingService
         await image.SaveAsJpegAsync(ms);
         return ms.ToArray();
     }
+
+    /// <summary>
+    /// Resizes an image file to a base64 string with a maximum dimension.
+    /// Good for displaying thumbnails or previews.
+    /// </summary>
+    public async Task<string> ResizeImageToBase64Async(string imagePath, int maxDimension)
+    {
+        try
+        {
+            var bytes = await System.IO.File.ReadAllBytesAsync(imagePath);
+            var resizedBytes = await ResizeImageAsync(bytes, maxDimension);
+            return Convert.ToBase64String(resizedBytes);
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Resizes image bytes to a maximum dimension.
+    /// </summary>
+    public async Task<byte[]> ResizeImageAsync(byte[] imageBytes, int maxDimension)
+    {
+#if ANDROID
+        return await GoldTracker.Mobile.Platforms.Android.AndroidImageProcessor.ResizeImageAsync(imageBytes, maxDimension);
+#else
+        return await Task.Run(() =>
+        {
+            try
+            {
+                using var image = SixLabors.ImageSharp.Image.Load(imageBytes);
+                
+                // Calculate new dimensions
+                var ratio = Math.Min((double)maxDimension / image.Width, (double)maxDimension / image.Height);
+                
+                if (ratio >= 1.0) return imageBytes; // No resize needed
+                
+                int newWidth = (int)(image.Width * ratio);
+                int newHeight = (int)(image.Height * ratio);
+                
+                image.Mutate(x => x
+                    .AutoOrient()
+                    .Resize(newResizeOptions(newWidth, newHeight)));
+                
+                using var ms = new System.IO.MemoryStream();
+                image.SaveAsJpeg(ms);
+                return ms.ToArray();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ImageProcessing] Error resizing: {ex.Message}");
+                return imageBytes; // Return original on error
+            }
+        });
+#endif
+    }
+
+    private ResizeOptions newResizeOptions(int w, int h) => new ResizeOptions
+    {
+        Size = new SixLabors.ImageSharp.Size(w, h),
+        Mode = SixLabors.ImageSharp.Processing.ResizeMode.Max
+    };
 
     /// <summary>
     /// Crops an image based on normalized coordinates (0-1) using a pre-loaded Image object.

@@ -50,16 +50,21 @@ public static class ObjectDetectionPreprocessingUtility
         var tensor = new DenseTensor<float>(new[] { 1, 3, inputSize, inputSize });
 
         // Copy pixel data and normalize to [0, 1]
-        for (int y = 0; y < inputSize; y++)
+        // Using ProcessPixelRows for much faster access than image[x, y]
+        image.ProcessPixelRows(accessor =>
         {
-            for (int x = 0; x < inputSize; x++)
+            for (int y = 0; y < inputSize; y++)
             {
-                var pixel = image[x, y];
-                tensor[0, 0, y, x] = pixel.R / 255.0f;  // R channel
-                tensor[0, 1, y, x] = pixel.G / 255.0f;  // G channel
-                tensor[0, 2, y, x] = pixel.B / 255.0f;  // B channel
+                var row = accessor.GetRowSpan(y);
+                for (int x = 0; x < inputSize; x++)
+                {
+                    var pixel = row[x];
+                    tensor[0, 0, y, x] = pixel.R / 255.0f;  // R channel
+                    tensor[0, 1, y, x] = pixel.G / 255.0f;  // G channel
+                    tensor[0, 2, y, x] = pixel.B / 255.0f;  // B channel
+                }
             }
-        }
+        });
 
         System.Diagnostics.Debug.WriteLine($"[ObjectDetectionPreprocessing] ? Tensor created: shape=[{string.Join(", ", tensor.Dimensions.ToArray())}]");
 

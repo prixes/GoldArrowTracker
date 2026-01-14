@@ -41,7 +41,7 @@ namespace GoldTracker.Mobile.Components.Pages
                 {
                     try
                     {
-                        var thumbnail = await ImageProcessingService.ImageToBase64Async(imagePath);
+                        var thumbnail = await ImageProcessingService.ResizeImageToBase64Async(imagePath, 200);
                         if (!string.IsNullOrEmpty(thumbnail))
                         {
                             _storedImageThumbnails[imagePath] = thumbnail;
@@ -118,7 +118,11 @@ namespace GoldTracker.Mobile.Components.Pages
             try
             {
                 _originalImagePath = imagePath;
-                _originalImageBytes = await System.IO.File.ReadAllBytesAsync(imagePath);
+                var rawBytes = await System.IO.File.ReadAllBytesAsync(imagePath);
+                
+                // Resize to max 1024px for faster processing and display
+                _originalImageBytes = await ImageProcessingService.ResizeImageAsync(rawBytes, 1024);
+                
                 _originalImageBase64 = Convert.ToBase64String(_originalImageBytes);
                 _analysisComplete = false;
                 _analysisResult = null;

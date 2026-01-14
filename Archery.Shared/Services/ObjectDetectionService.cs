@@ -149,6 +149,9 @@ public class ObjectDetectionService : IObjectDetectionService
         
         System.Diagnostics.Debug.WriteLine($"[ObjectDetectionService] Classes: {numClasses}, Predictions: {numPredictions}");
 
+        // Optimize: Get a direct span to the data to avoid multi-dimensional indexing overhead
+        ReadOnlySpan<float> data = outputTensor.Buffer.Span;
+
         int detectedCount = 0;
         int filteredCount = 0;
         var topPredictions = new List<(int Index, float Conf, float ClassScore, float Final, int ClassId)>();
@@ -156,12 +159,12 @@ public class ObjectDetectionService : IObjectDetectionService
         // Process each prediction
         for (int i = 0; i < numPredictions; i++)
         {
-            // Extract raw values
-            float x = outputTensor[0, 0, i];
-            float y = outputTensor[0, 1, i];
-            float w = outputTensor[0, 2, i];
-            float h = outputTensor[0, 3, i];
-            float confidence = outputTensor[0, 4, i];
+            // Extract raw values using flat indexing: [0, row, i] -> data[row * numPredictions + i]
+            float x = data[0 * numPredictions + i];
+            float y = data[1 * numPredictions + i];
+            float w = data[2 * numPredictions + i];
+            float h = data[3 * numPredictions + i];
+            float confidence = data[4 * numPredictions + i];
 
             // Get class scores
             float maxClassScore = 0;
@@ -169,7 +172,7 @@ public class ObjectDetectionService : IObjectDetectionService
 
             for (int c = 0; c < numClasses; c++)
             {
-                float classScore = outputTensor[0, 5 + c, i];
+                float classScore = data[(5 + c) * numPredictions + i];
                 if (classScore > maxClassScore)
                 {
                     maxClassScore = classScore;
