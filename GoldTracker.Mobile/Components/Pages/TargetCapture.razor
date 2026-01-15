@@ -95,6 +95,69 @@
             }
         </MudPaper>
     }
+    else if (_isReviewMode)
+    {
+        <!-- Review Mode Screen -->
+        <MudPaper Elevation="0" Class="px-2 py-4">
+            <MudText Typo="Typo.h6" GutterBottom="true" Class="font-weight-bold">
+                Correct Detections
+            </MudText>
+            <MudText Typo="Typo.caption" Class="mb-4" Style="opacity: 0.7;">
+                Tap a detection to select, then drag in the magnifier to adjust position or tap a score button to change.
+            </MudText>
+
+            <div class="review-image-section" style="position: relative; width: 100%; max-height: 55vh; background-color: transparent; border-radius: 12px; overflow: hidden; display: flex; justify-content: center; align-items: center; touch-action: none; border: 2px solid var(--mud-palette-lines-default);">
+                <img @ref="_reviewImageElement" src="@($"data:image/jpeg;base64,{_originalImageBase64}")" alt="image to correct" style="max-width: 100%; max-height: 55vh; object-fit: contain; pointer-events: none; display: block;"/>
+                <canvas @ref="_reviewCanvasElement" id="correction-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none;"></canvas>
+            </div>
+
+            <MudCard Elevation="0" Class="mt-2 pa-2" Style="background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-radius: 12px;">
+                <MudText Typo="Typo.caption" Align="Align.Center" Class="mb-2 d-block" Style="opacity: 0.7; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">
+                    — Change Score —
+                </MudText>
+
+                <div class="d-flex flex-wrap gap-1 justify-center align-center">
+                    @for (int i = 10; i >= 1; i--)
+                    {
+                        int score = i;
+                        <MudButton Variant="@(_selectedNewScore == score ? Variant.Filled : Variant.Outlined)"
+                                   Color="@GetScoreButtonMudColor(score)"
+                                   Size="Size.Medium"
+                                   Style="min-width: 40px; width: 40px; height: 40px; border-radius: 20px; padding: 0; font-weight: bold; font-size: 1rem;"
+                                   OnClick="@(() => SelectNewScore(score))">
+                            @score
+                        </MudButton>
+                    }
+                    <MudButton Variant="@(_selectedNewScore == 100 ? Variant.Filled : Variant.Outlined)"
+                               Color="@GetScoreButtonMudColor(100)"
+                               Size="Size.Small"
+                               Style="min-width: 40px; width: 40px; height: 40px; border-radius: 20px; padding: 0; font-weight: bold; font-size: 0.6rem;"
+                               OnClick="@(() => SelectNewScore(100))">
+                        Target
+                    </MudButton>
+                    <MudButton Variant="@(_selectedNewScore == 0 ? Variant.Filled : Variant.Outlined)" 
+                               Color="@GetScoreButtonMudColor(0)" 
+                               Size="Size.Medium"
+                               Style="min-width: 40px; width: 40px; height: 40px; border-radius: 20px; padding: 0; font-weight: bold; font-size: 1rem;"
+                               OnClick="@(() => SelectNewScore(0))">
+                        M
+                    </MudButton>
+                </div>
+
+                <MudStack Row="true" Spacing="1" Class="mt-3">
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Check" OnClick="@(() => ExitReviewModeAsync(true))" Size="Size.Medium" Style="flex: 1; height: 44px; border-radius: 22px; font-weight: bold;">
+                        Done
+                    </MudButton>
+                    <MudIconButton Icon="@Icons.Material.Filled.Undo" Color="Color.Info" Variant="Variant.Outlined" OnClick="UndoCorrection" Disabled="@(!_history.Any())" Style="width: 44px; height: 44px; border-radius: 22px;" Size="Size.Small" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Variant="Variant.Outlined" OnClick="DeleteSelectedCorrection" Disabled="@(_selectedCorrectionIndex < 0)" Style="width: 44px; height: 44px; border-radius: 22px;" Size="Size.Small" />
+                </MudStack>
+                
+                <MudButton Variant="Variant.Text" Color="Color.Default" FullWidth="true" OnClick="@(() => ExitReviewModeAsync(false))" Class="mt-1" Style="text-transform: none; opacity: 0.6; font-size: 0.75rem; min-height: 24px;">
+                    Cancel
+                </MudButton>
+            </MudCard>
+        </MudPaper>
+    }
     else
     {
         <!-- Results Screen -->
@@ -106,9 +169,10 @@
                 </MudAlert>
             }
 
-            <MudPaper Elevation="0" Class="pa-3" Style="width: 100%; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: #f5f5f5; margin-bottom: 24px;">
-                <MudImage Src="@($"data:image/jpeg;base64,{_annotatedImageBase64}")" Alt="analyzed" Style="width: 100%; height: 100%; object-fit: contain;" />
-            </MudPaper>
+            <div class="result-image-section" style="position: relative; width: 100%; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: #f5f5f5; margin-bottom: 24px;">
+                <img @ref="_resultImageElement" src="@($"data:image/jpeg;base64,{_annotatedImageBase64}")" alt="analyzed" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;" />
+                <canvas @ref="_resultCanvasElement" id="results-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: zoom-in; touch-action: none;"></canvas>
+            </div>
 
             @if (_analysisResult?.Status == AnalysisStatus.Success)
             {
@@ -164,6 +228,9 @@
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large" OnClick="SaveResultAsync">
                     Save Result
                 </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" FullWidth="true" Size="Size.Medium" OnClick="EnterReviewMode" StartIcon="@Icons.Material.Filled.Edit">
+                    Correct Detections
+                </MudButton>
                 <MudButton Variant="Variant.Outlined" Color="Color.Default" FullWidth="true" Size="Size.Large" OnClick="ResetAsync">
                     New Photo
                 </MudButton>
@@ -171,3 +238,4 @@
         </MudPaper>
     }
 </MudContainer>
+

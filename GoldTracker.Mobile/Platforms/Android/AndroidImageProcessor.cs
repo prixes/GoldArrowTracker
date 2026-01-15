@@ -337,8 +337,11 @@ public static class AndroidImageProcessor
                 shadowPaint.SetStyle(AndroidGraphics.Paint.Style.Stroke);
                 shadowPaint.Alpha = 150;
                 
-                using var textPaint = new AndroidGraphics.Paint { Color = AndroidGraphics.Color.White, TextSize = 28, FakeBoldText = true };
-                textPaint.SetShadowLayer(2, 1, 1, AndroidGraphics.Color.Black);
+                using var textPaint = new AndroidGraphics.Paint { Color = AndroidGraphics.Color.White, TextSize = 36, FakeBoldText = true, AntiAlias = true };
+                using var textOutlinePaint = new AndroidGraphics.Paint(textPaint) { Color = AndroidGraphics.Color.Black };
+                textOutlinePaint.SetStyle(AndroidGraphics.Paint.Style.Stroke);
+                textOutlinePaint.StrokeWidth = 4;
+                textOutlinePaint.FakeBoldText = true;
 
                 // 1. Draw raw detections (rings only, no text for arrows as we'll draw it with the score)
                 foreach (var detection in analysisResult.Detections)
@@ -384,7 +387,10 @@ public static class AndroidImageProcessor
                     canvas.DrawLine(x, y - size, x, y + size, pointPaint);
                     
                     var scoreText = $"{arrow.Points} ({arrow.Detection.Confidence:P0})";
-                    canvas.DrawText(scoreText, arrow.Detection.CenterX + 25, arrow.Detection.CenterY - 25, textPaint);
+                    float textX = arrow.Detection.CenterX + 25;
+                    float textY = arrow.Detection.CenterY - 25;
+                    canvas.DrawText(scoreText, textX, textY, textOutlinePaint);
+                    canvas.DrawText(scoreText, textX, textY, textPaint);
                 }
 
                 // Compress back to bytes
