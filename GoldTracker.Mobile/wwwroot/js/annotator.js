@@ -191,6 +191,7 @@ var annotator = {
             },
 
             drawBox: function (box, isSelected) {
+                if (box.hidden) return;
                 const x = box.startX * this.canvas.width;
                 const y = box.startY * this.canvas.height;
                 const w = (box.endX - box.startX) * this.canvas.width;
@@ -451,7 +452,8 @@ var annotator = {
                 endX: b.endX,
                 endY: b.endY,
                 label: b.label,
-                color: b.color
+                color: b.color,
+                hidden: b.hidden
             }));
             inst.selectedBoxIndex = -1;
             inst.redraw();
@@ -508,7 +510,8 @@ var annotator = {
                 endX: box.endX,
                 endY: box.endY,
                 label: box.label,
-                color: box.color
+                color: box.color,
+                hidden: box.hidden
             });
             inst.selectedBoxIndex = inst.boxes.length - 1;
             inst.activeHandle = inst.readOnly ? null : 'center';

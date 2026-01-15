@@ -92,7 +92,8 @@ namespace GoldTracker.Mobile.Components.Pages
                             endX = (double)(d.X + halfW) / imgWidth,
                             endY = (double)(d.Y + halfH) / imgHeight,
                             label = d.ClassId == 10 ? "target" : (points == 0 ? "Miss" : points.ToString()),
-                            color = GetScoreColor(points)
+                            color = GetScoreColor(points),
+                            hidden = true
                         };
                     }).ToArray();
 
