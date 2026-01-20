@@ -13,8 +13,9 @@ public interface ITargetScoringService
     /// Analyzes an archery target image and detects arrows, calculating score.
     /// </summary>
     /// <param name="imageData">Raw image bytes (JPEG/PNG).</param>
+    /// <param name="filePath">Optional path to the image file.</param>
     /// <returns>Analysis result with detected arrows and total score.</returns>
-    Task<TargetAnalysisResult> AnalyzeTargetImageAsync(byte[] imageData);
+    Task<TargetAnalysisResult> AnalyzeTargetImageAsync(byte[] imageData, string? filePath = null);
 
     /// <summary>
     /// Calculates the score for a detected arrow based on its distance from target center.

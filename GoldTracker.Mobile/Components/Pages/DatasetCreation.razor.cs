@@ -2,8 +2,6 @@ using GoldTracker.Mobile.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MudBlazor;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 
 namespace GoldTracker.Mobile.Components.Pages
 {
@@ -93,7 +91,7 @@ namespace GoldTracker.Mobile.Components.Pages
         private async Task SetSelectedMode(string mode)
         {
             _selectedMode = mode;
-            await JSRuntime.InvokeVoidAsync("annotator.deselect");
+            await JSRuntime.InvokeVoidAsync("annotator.deselect", "annotation-canvas");
             StateHasChanged();
         }
 
@@ -101,7 +99,7 @@ namespace GoldTracker.Mobile.Components.Pages
         {
             _selectedMode = "arrow";
             _selectedArrowScore = score;
-            await JSRuntime.InvokeVoidAsync("annotator.deselect");
+            await JSRuntime.InvokeVoidAsync("annotator.deselect", "annotation-canvas");
             StateHasChanged();
         }
 
@@ -167,14 +165,12 @@ namespace GoldTracker.Mobile.Components.Pages
                 _originalImagePath = imagePath;
                 _originalImageBytes = await System.IO.File.ReadAllBytesAsync(imagePath);
                 _originalImageBase64 = Convert.ToBase64String(_originalImageBytes);
-                Console.WriteLine($"[DatasetCreation] Image loaded. Base64 length: {_originalImageBase64.Length}");
             }
             catch (Exception ex)
             {
                 Snackbar.Add($"Error loading image: {ex.Message}", Severity.Error);
                 _originalImagePath = null;
                 _originalImageBytes = null;
-                Console.WriteLine($"[DatasetCreation] Error loading image: {ex.Message}");
             }
         }
 
@@ -203,7 +199,7 @@ namespace GoldTracker.Mobile.Components.Pages
                 color = _loadedClassColors[classId]
             };
 
-            await JSRuntime.InvokeVoidAsync("annotator.addBox", boxJs);
+            await JSRuntime.InvokeVoidAsync("annotator.addBox", "annotation-canvas", boxJs);
             StateHasChanged();
         }
 
@@ -373,7 +369,7 @@ namespace GoldTracker.Mobile.Components.Pages
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[DatasetCreation] ERROR in micro processing: {ex.Message}");
+                            System.Diagnostics.Debug.WriteLine($"[DatasetCreation] ERROR in micro processing: {ex.Message}");
                             throw;
                         }
                     });
@@ -394,7 +390,7 @@ namespace GoldTracker.Mobile.Components.Pages
             if (_annotations.Any())
             {
                 _annotations.RemoveAt(_annotations.Count - 1);
-                JSRuntime.InvokeVoidAsync("annotator.removeLastBox");
+                JSRuntime.InvokeVoidAsync("annotator.removeLastBox", "annotation-canvas");
                 StateHasChanged();
             }
         }
@@ -402,7 +398,7 @@ namespace GoldTracker.Mobile.Components.Pages
         private void ClearAnnotations()
         {
             _annotations.Clear();
-            JSRuntime.InvokeVoidAsync("annotator.clear");
+            JSRuntime.InvokeVoidAsync("annotator.clear", "annotation-canvas");
             StateHasChanged();
         }
 
@@ -421,7 +417,7 @@ namespace GoldTracker.Mobile.Components.Pages
             _dotNetObjectReference?.Dispose();
             if (_isLoaded)
             {
-                JSRuntime.InvokeVoidAsync("annotator.destroy");
+                JSRuntime.InvokeVoidAsync("annotator.destroy", "annotation-canvas");
             }
         }
     }

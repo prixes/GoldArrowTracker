@@ -25,6 +25,7 @@ var annotator = {
             boxes: [],
             readOnly: readOnly,
             showBoxes: showBoxes,
+            squareEnforced: true,
             isDrawing: false,
 
             resizeCanvas: function () {
@@ -148,18 +149,26 @@ var annotator = {
 
                     const dx = pos.x - this.startX;
                     const dy = pos.y - this.startY;
-                    const side = Math.max(Math.abs(dx), Math.abs(dy));
-                    const nx = this.startX + (dx >= 0 ? side : -side);
-                    const ny = this.startY + (dy >= 0 ? side : -side);
+                    let endX = pos.x;
+                    let endY = pos.y;
+
+                    const absDx = Math.abs(dx);
+                    const absDy = Math.abs(dy);
+
+                    if (this.squareEnforced) {
+                        const side = Math.max(absDx, absDy);
+                        endX = this.startX + (dx >= 0 ? side : -side);
+                        endY = this.startY + (dy >= 0 ? side : -side);
+                    }
 
                     // Only notify .NET, don't add locally to avoid duplication
-                    if (side > 5) {
+                    if (absDx > 5 || absDy > 5) {
                         if (this.dotNetHelper) {
-                            const startX = Math.min(this.startX, nx) / this.canvas.width;
-                            const startY = Math.min(this.startY, ny) / this.canvas.height;
-                            const endX = Math.max(this.startX, nx) / this.canvas.width;
-                            const endY = Math.max(this.startY, ny) / this.canvas.height;
-                            this.dotNetHelper.invokeMethodAsync('AddBox', startX, startY, endX, endY);
+                            const startX = Math.min(this.startX, endX) / this.canvas.width;
+                            const startY = Math.min(this.startY, endY) / this.canvas.height;
+                            const finalEndX = Math.max(this.startX, endX) / this.canvas.width;
+                            const finalEndY = Math.max(this.startY, endY) / this.canvas.height;
+                            this.dotNetHelper.invokeMethodAsync('AddBox', startX, startY, finalEndX, finalEndY);
                         }
                     }
                     this.redraw();
@@ -226,8 +235,12 @@ var annotator = {
                 this.ctx.lineWidth = 1;
 
                 const handles = [
+                    // Corners
                     { x: x, y: y }, { x: x + w, y: y },
-                    { x: x, y: y + h }, { x: x + w, y: y + h }
+                    { x: x, y: y + h }, { x: x + w, y: y + h },
+                    // Edges
+                    { x: x + w / 2, y: y }, { x: x + w / 2, y: y + h },
+                    { x: x, y: y + h / 2 }, { x: x + w, y: y + h / 2 }
                 ];
 
                 handles.forEach(p => {
@@ -347,10 +360,17 @@ var annotator = {
                 const h = (box.endY - box.startY) * this.canvas.height;
                 const size = 20;
 
+                // Corner handles
                 if (Math.abs(pos.x - x) < size && Math.abs(pos.y - y) < size) return 'tl';
                 if (Math.abs(pos.x - (x + w)) < size && Math.abs(pos.y - y) < size) return 'tr';
                 if (Math.abs(pos.x - x) < size && Math.abs(pos.y - (y + h)) < size) return 'bl';
                 if (Math.abs(pos.x - (x + w)) < size && Math.abs(pos.y - (y + h)) < size) return 'br';
+
+                // Edge handles (for cut-off targets)
+                if (Math.abs(pos.y - y) < size && pos.x > x && pos.x < x + w) return 't';
+                if (Math.abs(pos.y - (y + h)) < size && pos.x > x && pos.x < x + w) return 'b';
+                if (Math.abs(pos.x - x) < size && pos.y > y && pos.y < y + h) return 'l';
+                if (Math.abs(pos.x - (x + w)) < size && pos.y > y && pos.y < y + h) return 'r';
 
                 return null;
             },
@@ -362,23 +382,39 @@ var annotator = {
                 let nx = pos.x;
                 let ny = pos.y;
                 let fixX, fixY;
+
+                // Determine fixed points based on handle
                 if (this.activeHandle === 'tl') { fixX = box.endX * this.canvas.width; fixY = box.endY * this.canvas.height; }
                 else if (this.activeHandle === 'tr') { fixX = box.startX * this.canvas.width; fixY = box.endY * this.canvas.height; }
                 else if (this.activeHandle === 'bl') { fixX = box.endX * this.canvas.width; fixY = box.startY * this.canvas.height; }
                 else if (this.activeHandle === 'br') { fixX = box.startX * this.canvas.width; fixY = box.startY * this.canvas.height; }
+                else if (this.activeHandle === 't') { fixY = box.endY * this.canvas.height; }
+                else if (this.activeHandle === 'b') { fixY = box.startY * this.canvas.height; }
+                else if (this.activeHandle === 'l') { fixX = box.endX * this.canvas.width; }
+                else if (this.activeHandle === 'r') { fixX = box.startX * this.canvas.width; }
 
-                if (fixX !== undefined) {
-                    const dx = nx - fixX;
-                    const dy = ny - fixY;
-                    const side = Math.max(Math.abs(dx), Math.abs(dy));
-                    nx = fixX + (dx >= 0 ? side : -side);
-                    ny = fixY + (dy >= 0 ? side : -side);
-
-                    if (this.activeHandle === 'tl') { box.startX = nx / this.canvas.width; box.startY = ny / this.canvas.height; }
-                    else if (this.activeHandle === 'tr') { box.endX = nx / this.canvas.width; box.startY = ny / this.canvas.height; }
-                    else if (this.activeHandle === 'bl') { box.startX = nx / this.canvas.width; box.endY = ny / this.canvas.height; }
-                    else if (this.activeHandle === 'br') { box.endX = nx / this.canvas.width; box.endY = ny / this.canvas.height; }
+                // Apply square enforcement if needed
+                if (this.squareEnforced && box.label !== 'target') {
+                    if (['tl', 'tr', 'bl', 'br'].includes(this.activeHandle)) {
+                        const dx = nx - fixX;
+                        const dy = ny - fixY;
+                        const side = Math.max(Math.abs(dx), Math.abs(dy));
+                        nx = fixX + (dx >= 0 ? side : -side);
+                        ny = fixY + (dy >= 0 ? side : -side);
+                    }
+                    // Edge resizing doesn't easily support square enforcement without shifting center,
+                    // but for targets (where square is false) it's perfect.
                 }
+
+                // Update box coordinates
+                if (this.activeHandle === 'tl') { box.startX = nx / this.canvas.width; box.startY = ny / this.canvas.height; }
+                else if (this.activeHandle === 'tr') { box.endX = nx / this.canvas.width; box.startY = ny / this.canvas.height; }
+                else if (this.activeHandle === 'bl') { box.startX = nx / this.canvas.width; box.endY = ny / this.canvas.height; }
+                else if (this.activeHandle === 'br') { box.endX = nx / this.canvas.width; box.endY = ny / this.canvas.height; }
+                else if (this.activeHandle === 't') { box.startY = ny / this.canvas.height; }
+                else if (this.activeHandle === 'b') { box.endY = ny / this.canvas.height; }
+                else if (this.activeHandle === 'l') { box.startX = nx / this.canvas.width; }
+                else if (this.activeHandle === 'r') { box.endX = nx / this.canvas.width; }
 
                 this.redraw();
             },
@@ -404,16 +440,23 @@ var annotator = {
                 this.redraw();
                 const dx = pos.x - this.startX;
                 const dy = pos.y - this.startY;
-                const side = Math.max(Math.abs(dx), Math.abs(dy));
-                const nx = this.startX + (dx >= 0 ? side : -side);
-                const ny = this.startY + (dy >= 0 ? side : -side);
+                let endX = pos.x;
+                let endY = pos.y;
 
-                const x = Math.min(this.startX, nx);
-                const y = Math.min(this.startY, ny);
+                if (this.squareEnforced) {
+                    const side = Math.max(Math.abs(dx), Math.abs(dy));
+                    endX = this.startX + (dx >= 0 ? side : -side);
+                    endY = this.startY + (dy >= 0 ? side : -side);
+                }
+
+                const x = Math.min(this.startX, endX);
+                const y = Math.min(this.startY, endY);
+                const w = Math.abs(endX - this.startX);
+                const h = Math.abs(endY - this.startY);
 
                 this.ctx.strokeStyle = '#FF0000';
                 this.ctx.setLineDash([5, 5]);
-                this.ctx.strokeRect(x, y, side, side);
+                this.ctx.strokeRect(x, y, w, h);
                 this.ctx.setLineDash([]);
             }
         };
@@ -475,6 +518,15 @@ var annotator = {
         }
     },
 
+    removeLastBox: function (canvasId) {
+        const inst = this.instances.get(canvasId || 'default-canvas');
+        if (inst && inst.boxes.length > 0) {
+            inst.boxes.pop();
+            inst.selectedBoxIndex = -1;
+            inst.redraw();
+        }
+    },
+
     updateBoxStyle: function (canvasId, index, color, label) {
         const inst = this.instances.get(canvasId);
         if (inst) {
@@ -519,12 +571,27 @@ var annotator = {
         }
     },
 
+    deselect: function (id) {
+        const inst = this.instances.get(id || 'default-canvas');
+        if (inst) {
+            inst.selectedBoxIndex = -1;
+            inst.redraw();
+        }
+    },
+
     clear: function (id) {
         const inst = this.instances.get(id);
         if (inst) {
             inst.boxes = [];
             inst.selectedBoxIndex = -1;
             inst.redraw();
+        }
+    },
+
+    setSquareEnforced: function (id, enforced) {
+        const inst = this.instances.get(id);
+        if (inst) {
+            inst.squareEnforced = enforced;
         }
     },
 

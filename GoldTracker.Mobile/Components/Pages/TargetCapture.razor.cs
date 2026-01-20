@@ -61,9 +61,10 @@ namespace GoldTracker.Mobile.Components.Pages
         }
 
 
-        protected override async Task OnInitializedAsync()
+        protected override void OnInitialized()
         {
-            await LoadStoredImagesAsync();
+            // Fire and forget thumbnail loading so page transition is instant
+            _ = Task.Run(async () => await LoadStoredImagesAsync());
         }
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -127,13 +128,20 @@ namespace GoldTracker.Mobile.Components.Pages
                 // Load the boxes into the annotator
                 await JSRuntime.InvokeVoidAsync("annotator.loadBoxes", "correction-canvas", (object)boxesForJs);
                 
-                Console.WriteLine($"[TargetCapture] Loaded {boxesForJs.Length} boxes into correction-canvas");
+                System.Diagnostics.Debug.WriteLine($"[TargetCapture] Loaded {boxesForJs.Length} boxes into correction-canvas");
             }
         }
 
         private async Task<(int Width, int Height)> GetImageDimensionsAsync()
         {
             if (_originalImageBytes == null) return (1024, 1024);
+#if ANDROID
+            return await Task.Run(() => {
+                var options = new global::Android.Graphics.BitmapFactory.Options { InJustDecodeBounds = true };
+                global::Android.Graphics.BitmapFactory.DecodeByteArray(_originalImageBytes, 0, _originalImageBytes.Length, options);
+                return (options.OutWidth, options.OutHeight);
+            });
+#else
             try
             {
                 return await Task.Run(() => {
@@ -142,6 +150,7 @@ namespace GoldTracker.Mobile.Components.Pages
                 });
             }
             catch { return (1024, 1024); }
+#endif
         }
 
         private async Task LoadStoredImagesAsync()
@@ -149,6 +158,10 @@ namespace GoldTracker.Mobile.Components.Pages
             try
             {
                 _storedImages = CameraService.GetStoredImages().ToList();
+                
+                // Update UI once with the list of paths (placeholders can show)
+                await InvokeAsync(StateHasChanged);
+
                 foreach (var imagePath in _storedImages.Take(4))
                 {
                     try
@@ -157,6 +170,9 @@ namespace GoldTracker.Mobile.Components.Pages
                         if (!string.IsNullOrEmpty(thumbnail))
                         {
                             _storedImageThumbnails[imagePath] = thumbnail;
+                            
+                            // Update UI progressively as each thumbnail loads
+                            await InvokeAsync(StateHasChanged);
                         }
                     }
                     catch { }
@@ -233,7 +249,7 @@ namespace GoldTracker.Mobile.Components.Pages
                 var rawBytes = await System.IO.File.ReadAllBytesAsync(imagePath);
                 
                 // Resize to max 1024px for faster processing and display
-                _originalImageBytes = await ImageProcessingService.ResizeImageAsync(rawBytes, 1024);
+                _originalImageBytes = await ImageProcessingService.ResizeImageAsync(rawBytes, 1024, 80, imagePath);
                 
                 _originalImageBase64 = Convert.ToBase64String(_originalImageBytes);
                 _analysisComplete = false;
@@ -258,7 +274,7 @@ namespace GoldTracker.Mobile.Components.Pages
 
             try
             {
-                _analysisResult = await ImageProcessingService.AnalyzeTargetFromBytesAsync(_originalImageBytes);
+                _analysisResult = await ImageProcessingService.AnalyzeTargetFromBytesAsync(_originalImageBytes, _originalImagePath);
 
                 // Always attempt to draw detections if original image bytes exist and analysisResult is available
                 if (_originalImageBytes != null && _analysisResult != null)
@@ -352,22 +368,12 @@ namespace GoldTracker.Mobile.Components.Pages
         /// <summary>
         /// Enters review mode, converting detections to editable annotations.
         /// </summary>
-        private void EnterReviewMode()
+        private async Task EnterReviewMode()
         {
             if (_analysisResult == null || _originalImageBytes == null) return;
 
             // Get image dimensions to normalize coordinates
-            int imgWidth = 1024; // Default if identification fails
-            int imgHeight = 1024;
-            try 
-            {
-                var info = SixLabors.ImageSharp.Image.Identify(_originalImageBytes);
-                if (info != null)
-                {
-                    imgWidth = info.Width;
-                    imgHeight = info.Height;
-                }
-            } catch { }
+            var (imgWidth, imgHeight) = await GetImageDimensionsAsync();
 
             _corrections.Clear();
             _dotNetObjectReference = DotNetObjectReference.Create(this);
@@ -567,6 +573,7 @@ namespace GoldTracker.Mobile.Components.Pages
                 {
                     _analysisResult.TargetCenter = (detection.X, detection.Y);
                     _analysisResult.TargetRadius = detection.Width / 2.0f;
+                    _analysisResult.TargetRadiusY = detection.Height / 2.0f;
                 }
                 else if (points > 0 && points <= 10)
                 {
@@ -619,6 +626,16 @@ namespace GoldTracker.Mobile.Components.Pages
             };
         }
 
+        private int MapPointsToClassId(int points)
+        {
+            return points switch
+            {
+                100 => 10, // Target face
+                10 => 11,  // 10 points
+                _ => points
+            };
+        }
+
         /// <summary>
         /// Gets hex color for a score value.
         /// </summary>
@@ -654,26 +671,25 @@ namespace GoldTracker.Mobile.Components.Pages
         /// <summary>
         /// Selects a new score for the currently selected detection.
         /// </summary>
-        private void SelectNewScore(int score)
+        private async Task SelectNewScore(int points)
         {
-            _selectedNewScore = score;
+            _selectedNewScore = points;
+            
+            // Toggle square enforcement: Target (100) can be non-square (ellipse), arrows must be square
+            bool squareEnforced = points != 100;
+            if (_isAnnotatorLoaded)
+            {
+                await JSRuntime.InvokeVoidAsync("annotator.setSquareEnforced", "correction-canvas", squareEnforced);
+            }
 
             if (_selectedCorrectionIndex >= 0 && _selectedCorrectionIndex < _corrections.Count)
             {
                 SaveToHistory();
-                // Map score to class ID (current model format for internal use)
-                int classId = score switch
-                {
-                    100 => 10, // Target face
-                    10 => 11,  // 10 points
-                    _ => score
-                };
-                _corrections[_selectedCorrectionIndex].CorrectedClassId = classId;
-                
-                // Update the box color in JS
-                UpdateCorrectionBoxInJs(_selectedCorrectionIndex);
+                var correction = _corrections[_selectedCorrectionIndex];
+                correction.CorrectedClassId = MapPointsToClassId(points);
+                await JSRuntime.InvokeVoidAsync("annotator.updateBoxStyle", "correction-canvas", _selectedCorrectionIndex, GetScoreColor(points), points == 100 ? "target" : points.ToString());
+                StateHasChanged();
             }
-            StateHasChanged();
         }
 
         /// <summary>
@@ -820,6 +836,20 @@ namespace GoldTracker.Mobile.Components.Pages
                 }).ToArray();
 
             await JSRuntime.InvokeVoidAsync("annotator.loadBoxes", "correction-canvas", (object)boxesForJs);
+        }
+
+        private (float x, float y) GetNormalizedArrowPosition(ArrowScore arrow)
+        {
+            if (_analysisResult == null || _analysisResult.TargetRadius <= 0 || _analysisResult.TargetRadiusY <= 0) 
+                return (0, 0);
+
+            // Calculate offset from target center in pixels
+            float dx = arrow.Detection.CenterX - _analysisResult.TargetCenter.X;
+            float dy = arrow.Detection.CenterY - _analysisResult.TargetCenter.Y;
+
+            // Normalize by target radius (X and Y separately to "flatten" perspective)
+            // Result will be -1 to 1 regardless of tilt
+            return (dx / _analysisResult.TargetRadius, dy / _analysisResult.TargetRadiusY);
         }
 
         #endregion

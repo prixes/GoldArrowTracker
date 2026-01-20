@@ -23,6 +23,13 @@ namespace GoldTracker.Mobile
             builder.Services.AddMudBlazorSnackbar();
             builder.Services.AddMudServices();
             builder.Services.AddScoped<CameraService>();
+            
+            // Register Image Preprocessor (Platform-specific optimization)
+#if ANDROID
+            builder.Services.AddSingleton<IImagePreprocessor, GoldTracker.Mobile.Platforms.Android.AndroidImagePreprocessorService>();
+#else
+            builder.Services.AddSingleton<IImagePreprocessor, DefaultImagePreprocessor>();
+#endif
 
             // Register Object Detection Configuration
             builder.Services.AddSingleton(sp => 
@@ -43,6 +50,7 @@ namespace GoldTracker.Mobile
             builder.Services.AddScoped<IObjectDetectionService>(sp => 
             {
                 var config = sp.GetRequiredService<ObjectDetectionConfig>();
+                var preprocessor = sp.GetRequiredService<IImagePreprocessor>();
                 
                 // Ensure model is deployed
                 string modelPath;
@@ -58,7 +66,7 @@ namespace GoldTracker.Mobile
                     throw;
                 }
 
-                return new ObjectDetectionService(modelPath, config);
+                return new ObjectDetectionService(modelPath, config, preprocessor);
             });
 
             // Register Target Scoring Service

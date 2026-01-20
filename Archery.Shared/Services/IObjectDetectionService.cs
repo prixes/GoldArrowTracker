@@ -17,5 +17,5 @@ public interface IObjectDetectionService : IDisposable
     /// <summary>
     /// Runs inference on an image and returns detections.
     /// </summary>
-    List<ObjectDetectionResult> Predict(byte[] imageBytes);
+    List<ObjectDetectionResult> Predict(byte[] imageBytes, string? filePath = null);
 }

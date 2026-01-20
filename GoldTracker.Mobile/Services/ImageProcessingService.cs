@@ -72,13 +72,13 @@ public class ImageProcessingService
         }
 
         var imageBytes = await System.IO.File.ReadAllBytesAsync(imagePath);
-        return await _targetScoringService.AnalyzeTargetImageAsync(imageBytes);
+        return await _targetScoringService.AnalyzeTargetImageAsync(imageBytes, imagePath);
     }
 
     /// <summary>
     /// Analyzes raw image bytes for archery target detection.
     /// </summary>
-    public async Task<TargetAnalysisResult> AnalyzeTargetFromBytesAsync(byte[] imageBytes)
+    public async Task<TargetAnalysisResult> AnalyzeTargetFromBytesAsync(byte[] imageBytes, string? filePath = null)
     {
         if (_targetScoringService == null)
         {
@@ -91,14 +91,10 @@ public class ImageProcessingService
 
         if (imageBytes == null || imageBytes.Length == 0)
         {
-            return new TargetAnalysisResult
-            {
-                Status = AnalysisStatus.Failure,
-                ErrorMessage = "Image bytes cannot be null or empty."
-            };
+            throw new ArgumentException("Image bytes cannot be null or empty.");
         }
 
-        return await _targetScoringService.AnalyzeTargetImageAsync(imageBytes);
+        return await _targetScoringService.AnalyzeTargetImageAsync(imageBytes, filePath);
     }
 
     /// <summary>
@@ -110,69 +106,36 @@ public class ImageProcessingService
         var annotatedBytes = await GoldTracker.Mobile.Platforms.Android.AndroidImageProcessor.DrawDetectionsAsync(imageBytes, analysisResult);
         return Convert.ToBase64String(annotatedBytes);
 #else
+        // Fallback for non-Android platforms (e.g. Simulator/Windows)
         return await Task.Run(async () => {
-            using var image = SixLabors.ImageSharp.Image.Load<Rgba32>(imageBytes);
-
-            if (analysisResult.Status != AnalysisStatus.Success)
+            try 
             {
-                // return original image if analysis failed
+                using var image = SixLabors.ImageSharp.Image.Load<Rgba32>(imageBytes);
+
+                if (analysisResult.Status != AnalysisStatus.Success)
+                {
+                    return Convert.ToBase64String(imageBytes);
+                }
+
+                var font = await GetFontAsync();
+
+                // Simplify fallback drawing for non-Android
+                foreach (var detection in analysisResult.ArrowScores)
+                {
+                    float x = detection.Detection.CenterX;
+                    float y = detection.Detection.CenterY;
+                    image.Mutate(ctx => ctx.Draw(Color.Red, 2, new EllipsePolygon(x, y, 10)));
+                }
+                
+                using var ms = new System.IO.MemoryStream();
+                await image.SaveAsJpegAsync(ms);
+                return Convert.ToBase64String(ms.ToArray());
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ImageProcessingService] DrawDetections Fallback Error: {ex.Message}");
                 return Convert.ToBase64String(imageBytes);
             }
-
-            var font = await GetFontAsync();
-
-            // Draw all detections (rings only)
-            foreach (var detection in analysisResult.Detections)
-            {
-                if (detection.IsTargetFace) continue; // Redundant
-
-                // Create an ellipse from the bounding box
-                var ellipse = new EllipsePolygon(detection.X, detection.Y, detection.Width / 2, detection.Height / 2);
-                
-                // Draw with contrast (outline)
-                image.Mutate(x => x.Draw(Color.Black.WithAlpha(0.5f), 4, ellipse));
-                image.Mutate(x => x.Draw(Color.Green, 2, ellipse));
-            }
-
-            // Draw target center and radius if detected
-            if (analysisResult.TargetRadius > 0)
-            {
-                var targetCenterMarker = new EllipsePolygon(analysisResult.TargetCenter.X, analysisResult.TargetCenter.Y, 10);
-                image.Mutate(x => x.Draw(Color.Cyan, 4, targetCenterMarker));
-                var targetCircle = new EllipsePolygon(analysisResult.TargetCenter.X, analysisResult.TargetCenter.Y, analysisResult.TargetRadius);
-                image.Mutate(x => x.Draw(Color.Cyan, 4, targetCircle));
-            }
-
-            // Draw arrows and scores
-            foreach (var arrow in analysisResult.ArrowScores)
-            {
-                float x = arrow.Detection.CenterX;
-                float y = arrow.Detection.CenterY;
-                float size = 12;
-
-                // Draw thin plus sign
-                image.Mutate(ctx => ctx.DrawLines(Color.Black.WithAlpha(0.6f), 2, new PointF(x - size, y), new PointF(x + size, y)));
-                image.Mutate(ctx => ctx.DrawLines(Color.Black.WithAlpha(0.6f), 2, new PointF(x, y - size), new PointF(x, y + size)));
-                
-                image.Mutate(ctx => ctx.DrawLines(Color.Red, 1, new PointF(x - size, y), new PointF(x + size, y)));
-                image.Mutate(ctx => ctx.DrawLines(Color.Red, 1, new PointF(x, y - size), new PointF(x, y + size)));
-
-                var scoreText = $"{arrow.Points} ({arrow.Detection.Confidence:P0})";
-                var textLocation = new SixLabors.ImageSharp.PointF(arrow.Detection.CenterX + 20, arrow.Detection.CenterY - 20);
-                
-                var textOptions = new RichTextOptions(font) 
-                { 
-                    Origin = textLocation
-                };
-
-                image.Mutate(x => x.DrawText(textOptions, scoreText, Color.Black));
-                var offsetOptions = new RichTextOptions(textOptions) { Origin = new PointF(textLocation.X - 1, textLocation.Y - 1) };
-                image.Mutate(x => x.DrawText(offsetOptions, scoreText, Color.White));
-            }
-            
-            using var ms = new System.IO.MemoryStream();
-            await image.SaveAsJpegAsync(ms);
-            return Convert.ToBase64String(ms.ToArray());
         });
 #endif
     }
@@ -245,30 +208,39 @@ public class ImageProcessingService
     /// </summary>
     public async Task<byte[]> CropImageAsync(byte[] imageBytes, double startXNorm, double startYNorm, double widthNorm, double heightNorm)
     {
-        using var image = SixLabors.ImageSharp.Image.Load<Rgba32>(imageBytes);
-        image.Mutate(x => x.AutoOrient());
-        
-        int x = (int)(startXNorm * image.Width);
-        int y = (int)(startYNorm * image.Height);
-        int w = (int)(widthNorm * image.Width);
-        int h = (int)(heightNorm * image.Height);
+#if ANDROID
+        using var bitmap = await GoldTracker.Mobile.Platforms.Android.AndroidImageProcessor.LoadBitmapAsync(imageBytes);
+        if (bitmap == null) return Array.Empty<byte>();
+        return await GoldTracker.Mobile.Platforms.Android.AndroidImageProcessor.CropBitmapAsync(bitmap, startXNorm, startYNorm, widthNorm, heightNorm);
+#else
+        return await Task.Run(async () => {
+            try 
+            {
+                using var image = SixLabors.ImageSharp.Image.Load<Rgba32>(imageBytes);
+                image.Mutate(x => x.AutoOrient());
+                
+                int x = (int)(startXNorm * image.Width);
+                int y = (int)(startYNorm * image.Height);
+                int w = (int)(widthNorm * image.Width);
+                int h = (int)(heightNorm * image.Height);
 
-        Console.WriteLine($"[ImageProcessing] CropImageAsync: Image Size={image.Width}x{image.Height}");
-        Console.WriteLine($"[ImageProcessing] Crop Coordinates: x={x}, y={y}, w={w}, h={h}");
+                // Ensure bounds
+                x = Math.Max(0, x);
+                y = Math.Max(0, y);
+                w = Math.Min(w, image.Width - x);
+                h = Math.Min(h, image.Height - y);
 
-        // Ensure bounds
-        x = Math.Max(0, x);
-        y = Math.Max(0, y);
-        w = Math.Min(w, image.Width - x);
-        h = Math.Min(h, image.Height - y);
+                if (w <= 0 || h <= 0) return Array.Empty<byte>();
 
-        if (w <= 0 || h <= 0) return Array.Empty<byte>();
+                image.Mutate(ctx => ctx.Crop(new SixLabors.ImageSharp.Rectangle(x, y, w, h)));
 
-        image.Mutate(ctx => ctx.Crop(new SixLabors.ImageSharp.Rectangle(x, y, w, h)));
-
-        using var ms = new System.IO.MemoryStream();
-        await image.SaveAsJpegAsync(ms);
-        return ms.ToArray();
+                using var ms = new System.IO.MemoryStream();
+                await image.SaveAsJpegAsync(ms);
+                return ms.ToArray();
+            }
+            catch { return Array.Empty<byte>(); }
+        });
+#endif
     }
 
     /// <summary>
@@ -280,7 +252,7 @@ public class ImageProcessingService
         try
         {
             var bytes = await System.IO.File.ReadAllBytesAsync(imagePath);
-            var resizedBytes = await ResizeImageAsync(bytes, maxDimension);
+            var resizedBytes = await ResizeImageAsync(bytes, maxDimension, 80, imagePath);
             return Convert.ToBase64String(resizedBytes);
         }
         catch
@@ -292,10 +264,10 @@ public class ImageProcessingService
     /// <summary>
     /// Resizes image bytes to a maximum dimension.
     /// </summary>
-    public async Task<byte[]> ResizeImageAsync(byte[] imageBytes, int maxDimension)
+    public async Task<byte[]> ResizeImageAsync(byte[] imageBytes, int maxDimension, int quality = 80, string? filePath = null)
     {
 #if ANDROID
-        return await GoldTracker.Mobile.Platforms.Android.AndroidImageProcessor.ResizeImageAsync(imageBytes, maxDimension);
+        return await GoldTracker.Mobile.Platforms.Android.AndroidImageProcessor.ResizeImageAsync(imageBytes, maxDimension, quality, filePath);
 #else
         return await Task.Run(() =>
         {

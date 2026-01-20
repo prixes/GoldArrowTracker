@@ -33,7 +33,7 @@ public static class AndroidImageProcessor
                 
                 if (bitmap == null)
                 {
-                    Console.WriteLine($"[AndroidImageProcessor] Failed to decode bitmap");
+                    System.Diagnostics.Debug.WriteLine($"[AndroidImageProcessor] Failed to decode bitmap");
                     return null;
                 }
                 
@@ -44,7 +44,7 @@ public static class AndroidImageProcessor
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[AndroidImageProcessor] Error loading bitmap: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[AndroidImageProcessor] Error loading bitmap: {ex.Message}");
                 return null;
             }
         });
@@ -53,7 +53,7 @@ public static class AndroidImageProcessor
     /// <summary>
     /// Apply EXIF rotation to correct physically rotated JPEG pixel data.
     /// </summary>
-    private static AndroidGraphics.Bitmap ApplyExifRotation(AndroidGraphics.Bitmap bitmap, byte[] imageBytes, string? filePath = null)
+    public static AndroidGraphics.Bitmap ApplyExifRotation(AndroidGraphics.Bitmap bitmap, byte[] imageBytes, string? filePath = null)
     {
         try
         {
@@ -61,16 +61,49 @@ public static class AndroidImageProcessor
             
             if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
             {
-                exif = new AndroidMedia.ExifInterface(filePath);
+                // Guard: Check first 2 bytes of file to ensure it's a JPEG and has enough size
+                // ExifInterface logs EOFException if file is truncated or < ~100 bytes.
+                try
+                {
+                    var fileInfo = new FileInfo(filePath);
+                    if (fileInfo.Length > 512)
+                    {
+                        using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                        {
+                            int byte1 = fs.ReadByte();
+                            int byte2 = fs.ReadByte();
+                            if (byte1 == 0xFF && byte2 == 0xD8)
+                            {
+                                exif = new AndroidMedia.ExifInterface(filePath);
+                            }
+                        }
+                    }
+                }
+                catch { /* Ignore header read errors */ }
             }
-            else
+            else if (imageBytes != null && imageBytes.Length > 512)
             {
-                using var stream = new MemoryStream(imageBytes);
-                exif = new AndroidMedia.ExifInterface(stream);
+                // Guard: Only try to load EXIF if it looks like a JPEG (starts with FF D8)
+                // This prevents ExifInterface from internally throwing and logging EOFException.
+                if (imageBytes[0] == 0xFF && imageBytes[1] == 0xD8)
+                {
+                    try 
+                    {
+                        using var stream = new MemoryStream(imageBytes);
+                        exif = new AndroidMedia.ExifInterface(stream);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[AndroidImageProcessor] ExifInterface Stream Error: {ex.Message}");
+                        return bitmap; 
+                    }
+                }
             }
 
-            using (exif)
+            if (exif != null)
             {
+                using (exif)
+                {
                 var orientation = exif.GetAttributeInt(
                     AndroidMedia.ExifInterface.TagOrientation,
                     (int)AndroidMedia.Orientation.Normal);
@@ -80,7 +113,7 @@ public static class AndroidImageProcessor
                     return bitmap;
                 }
 
-                Console.WriteLine($"[AndroidImageProcessor] Correcting image orientation (Tag: {orientation})");
+                System.Diagnostics.Debug.WriteLine($"[AndroidImageProcessor] Correcting image orientation (Tag: {orientation})");
 
                 var matrix = new AndroidGraphics.Matrix();
                 
@@ -112,13 +145,14 @@ public static class AndroidImageProcessor
                     bitmap.Dispose();
                     return rotatedBitmap;
                 }
+                } // End using(exif)
             }
             
             return bitmap;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AndroidImageProcessor] Error reading EXIF: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[AndroidImageProcessor] Error reading EXIF: {ex.Message}");
             return bitmap;
         }
     }
@@ -147,7 +181,7 @@ public static class AndroidImageProcessor
 
                 if (w <= 0 || h <= 0)
                 {
-                    Console.WriteLine($"[AndroidImageProcessor] Invalid crop dimensions: w={w}, h={h}");
+                    System.Diagnostics.Debug.WriteLine($"[AndroidImageProcessor] Invalid crop dimensions: w={w}, h={h}");
                     return Array.Empty<byte>();
                 }
 
@@ -184,7 +218,7 @@ public static class AndroidImageProcessor
     /// Resizes an image to fit within the specified maximum dimension while maintaining aspect ratio.
     /// Uses hardware-accelerated Bitmap scaling.
     /// </summary>
-    public static async Task<byte[]> ResizeImageAsync(byte[] imageBytes, int maxDimension, int quality = 80)
+    public static async Task<byte[]> ResizeImageAsync(byte[] imageBytes, int maxDimension, int quality = 80, string? filePath = null)
     {
         return await Task.Run(() =>
         {
@@ -236,7 +270,7 @@ public static class AndroidImageProcessor
                 if (originalBitmap == null) return Array.Empty<byte>();
 
                 // Handle Rotation
-                originalBitmap = ApplyExifRotation(originalBitmap, imageBytes);
+                originalBitmap = ApplyExifRotation(originalBitmap, imageBytes, filePath);
 
                 // Recalculate dimensions after rotation because width/height might have swapped
                 // If we rotated 90 degrees, Width/Height swapped.
@@ -283,7 +317,7 @@ public static class AndroidImageProcessor
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[AndroidImageProcessor] Error resizing image: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[AndroidImageProcessor] Error resizing image: {ex.Message}");
                 return Array.Empty<byte>();
             }
         });
@@ -359,16 +393,40 @@ public static class AndroidImageProcessor
                     canvas.DrawOval(rect, arrowPaint);
                 }
 
-                // 2. Draw calculated target center/radius
+                // 2. Draw calculated target rings (full 10-ring guide for transparency)
                 if (analysisResult.TargetRadius > 0)
                 {
-                    // Center crosshair
-                    canvas.DrawCircle(analysisResult.TargetCenter.X, analysisResult.TargetCenter.Y, 15, targetPaint);
-                    canvas.DrawLine(analysisResult.TargetCenter.X - 20, analysisResult.TargetCenter.Y, analysisResult.TargetCenter.X + 20, analysisResult.TargetCenter.Y, targetPaint);
-                    canvas.DrawLine(analysisResult.TargetCenter.X, analysisResult.TargetCenter.Y - 20, analysisResult.TargetCenter.X, analysisResult.TargetCenter.Y + 20, targetPaint);
+                    float cx = analysisResult.TargetCenter.X;
+                    float cy = analysisResult.TargetCenter.Y;
+                    float rx = analysisResult.TargetRadius;
+                    float ry = analysisResult.TargetRadiusY > 0 ? analysisResult.TargetRadiusY : rx;
+
+                    // Draw all 10 rings as subtle elliptical guides
+                    using var guidePaint = new AndroidGraphics.Paint();
+                    guidePaint.AntiAlias = true;
+                    guidePaint.SetStyle(AndroidGraphics.Paint.Style.Stroke);
+                    guidePaint.StrokeWidth = 2;
+                    guidePaint.Color = AndroidGraphics.Color.Cyan;
+
+                    for (int i = 1; i <= 10; i++)
+                    {
+                        float ringRadiusX = rx * (i / 10.0f);
+                        float ringRadiusY = ry * (i / 10.0f);
+                        
+                        // Use lower opacity for intermediate rings
+                        guidePaint.Alpha = i == 10 ? 180 : (i % 2 == 0 ? 80 : 40);
+                        guidePaint.StrokeWidth = i == 10 ? 4 : 2;
+
+                        using var ringRect = new AndroidGraphics.RectF(cx - ringRadiusX, cy - ringRadiusY, cx + ringRadiusX, cy + ringRadiusY);
+                        canvas.DrawOval(ringRect, guidePaint);
+                    }
                     
-                    // Outer circle
-                    canvas.DrawCircle(analysisResult.TargetCenter.X, analysisResult.TargetCenter.Y, analysisResult.TargetRadius, targetPaint);
+                    // Bold center crosshair
+                    float crossSize = 15;
+                    targetPaint.Alpha = 255;
+                    targetPaint.StrokeWidth = 3;
+                    canvas.DrawLine(cx - crossSize, cy, cx + crossSize, cy, targetPaint);
+                    canvas.DrawLine(cx, cy - crossSize, cx, cy + crossSize, targetPaint);
                 }
 
                 // 3. Draw arrows and scores

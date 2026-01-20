@@ -12,11 +12,12 @@ public class ObjectDetectionService : IObjectDetectionService
 {
     private InferenceSession? _session;
     private readonly ObjectDetectionConfig _config;
+    private readonly IImagePreprocessor _preprocessor;
 
     /// <inheritdoc />
     public ObjectDetectionConfig Config => _config;
 
-    public ObjectDetectionService(string modelPath, ObjectDetectionConfig config)
+    public ObjectDetectionService(string modelPath, ObjectDetectionConfig config, IImagePreprocessor preprocessor)
     {
         if (!File.Exists(modelPath))
         {
@@ -24,6 +25,7 @@ public class ObjectDetectionService : IObjectDetectionService
         }
 
         _config = config;
+        _preprocessor = preprocessor;
 
         try
         {
@@ -43,7 +45,7 @@ public class ObjectDetectionService : IObjectDetectionService
     /// <summary>
     /// Runs inference on an image and returns detections.
     /// </summary>
-    public List<ObjectDetectionResult> Predict(byte[] imageBytes)
+    public List<ObjectDetectionResult> Predict(byte[] imageBytes, string? filePath = null)
     {
         if (_session == null)
         {
@@ -57,10 +59,10 @@ public class ObjectDetectionService : IObjectDetectionService
 
         try
         {
-            // 1. Preprocess image
+            // 1. Preprocess image using injected preprocessor (platform-optimized)
             System.Diagnostics.Debug.WriteLine("[ObjectDetectionService] Starting inference...");
             var (inputTensor, origWidth, origHeight, scaleX, scaleY) =
-                ObjectDetectionPreprocessingUtility.PreprocessImage(imageBytes, _config.InputSize);
+                _preprocessor.Preprocess(imageBytes, _config.InputSize, filePath);
             
             System.Diagnostics.Debug.WriteLine(
                 $"[ObjectDetectionService] Image preprocessed: {origWidth}x{origHeight} -> " +

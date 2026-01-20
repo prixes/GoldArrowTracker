@@ -42,9 +42,14 @@ public class TargetAnalysisResult
     public (float X, float Y) TargetCenter { get; set; }
 
     /// <summary>
-    /// Gets or sets the estimated radius of the target in pixels.
+    /// Gets or sets the estimated horizontal radius (X) of the target in pixels.
     /// </summary>
     public float TargetRadius { get; set; }
+
+    /// <summary>
+    /// Gets or sets the estimated vertical radius (Y) of the target in pixels.
+    /// </summary>
+    public float TargetRadiusY { get; set; }
 
     /// <summary>
     /// Gets or sets details about each arrow's score breakdown.

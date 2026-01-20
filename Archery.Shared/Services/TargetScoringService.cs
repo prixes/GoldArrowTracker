@@ -25,7 +25,7 @@ public class TargetScoringService : ITargetScoringService
     /// Analyzes an archery target image using Object Detection.
     /// Detects the target face and all arrows, then scores each arrow.
     /// </summary>
-    public async Task<TargetAnalysisResult> AnalyzeTargetImageAsync(byte[] imageData)
+    public async Task<TargetAnalysisResult> AnalyzeTargetImageAsync(byte[] imageData, string? filePath = null)
     {
         if (imageData == null || imageData.Length == 0)
         {
@@ -39,7 +39,7 @@ public class TargetScoringService : ITargetScoringService
         return await Task.Run(() =>
         {
             // 1. Run inference
-            var detections = _objectDetectionService.Predict(imageData);
+            var detections = _objectDetectionService.Predict(imageData, filePath);
             
             var result = new TargetAnalysisResult 
             {
@@ -63,10 +63,11 @@ public class TargetScoringService : ITargetScoringService
                 return result;
             }
 
-            // 3. Extract target center and radius
+            // 3. Extract target center and radii
             result.TargetCenter = (targetDetection.X, targetDetection.Y);
-            result.TargetRadius = Math.Max(targetDetection.Width, targetDetection.Height) / 2f;
-            result.Status = AnalysisStatus.Success; // Explicitly set success if target found
+            result.TargetRadius = targetDetection.Width / 2f;
+            result.TargetRadiusY = targetDetection.Height / 2f;
+            result.Status = AnalysisStatus.Success;
 
             // 4. Filter and process arrow detections
             var arrowDetections = detections
@@ -88,17 +89,23 @@ public class TargetScoringService : ITargetScoringService
 
                 result.DetectedArrows.Add(arrowDetection);
 
-                var distFromCenter = this.CalculateDistance(
-                    arrowDetection.CenterX, arrowDetection.CenterY,
-                    result.TargetCenter.X, result.TargetCenter.Y);
+                // Calculate elliptical normalized distance for perspective awareness
+                float dx = arrowDetection.CenterX - result.TargetCenter.X;
+                float dy = arrowDetection.CenterY - result.TargetCenter.Y;
+                
+                // Normalized distance: r = sqrt((dx/rx)^2 + (dy/ry)^2)
+                // This "flattens" the perspective distortion.
+                float normX = dx / result.TargetRadius;
+                float normY = dy / result.TargetRadiusY;
+                float normalizedDistance = (float)Math.Sqrt(normX * normX + normY * normY);
 
-                var points = this.CalculateArrowScore(distFromCenter, result.TargetRadius);
-                var ring = this.DetermineRing(distFromCenter, result.TargetRadius);
+                var points = this.CalculateScoreFromNormalizedDistance(normalizedDistance);
+                var ring = this.DetermineRingFromNormalizedDistance(normalizedDistance);
 
                 result.ArrowScores.Add(new ArrowScore
                 {
                     Detection = arrowDetection,
-                    DistanceFromCenter = distFromCenter,
+                    DistanceFromCenter = (float)Math.Sqrt(dx * dx + dy * dy), // Real pixel distance
                     Points = points,
                     Ring = ring
                 });
@@ -130,8 +137,8 @@ public class TargetScoringService : ITargetScoringService
         }
 
         // Calculate score: 10 points for 0-0.1 radius, 9 for 0.1-0.2, etc.
-        // This effectively assigns a score based on which 0.1-segment of the radius the arrow falls into.
-        var score = 10 - (int)System.Math.Floor(normalizedDistance * 10);
+        // Epsilon shift for "higher score on line" rule: touching the line = higher points.
+        var score = 10 - (int)System.Math.Floor(System.Math.Max(0, normalizedDistance - 0.00001f) * 10);
 
         return System.Math.Max(0, score); // Ensure score is not negative
     }
@@ -157,9 +164,27 @@ public class TargetScoringService : ITargetScoringService
         // Determine ring based on 0.1 segments, 10 being innermost, 1 outermost.
         // normalizedDistance 0.0-0.1 -> score 10 -> ring 10
         // normalizedDistance 0.1-0.2 -> score 9 -> ring 9
-        // ...
-        // normalizedDistance 0.9-1.0 -> score 1 -> ring 1
-        return 10 - (int)System.Math.Floor(normalizedDistance * 10);
+        // Epsilon shift for "higher score on line" rule.
+        return 10 - (int)System.Math.Floor(System.Math.Max(0, normalizedDistance - 0.00001f) * 10);
+    }
+
+    /// <summary>
+    /// Calculates score based on normalized distance (0.0 to 1.0) using Olympic scoring.
+    /// </summary>
+    public int CalculateScoreFromNormalizedDistance(float normalizedDistance)
+    {
+        if (normalizedDistance >= 1.0f) return 0;
+        var score = 10 - (int)System.Math.Floor(System.Math.Max(0, normalizedDistance - 0.00001f) * 10);
+        return System.Math.Max(0, score);
+    }
+
+    /// <summary>
+    /// Determines which ring (1-10) an arrow hit based on normalized distance.
+    /// </summary>
+    public int DetermineRingFromNormalizedDistance(float normalizedDistance)
+    {
+        if (normalizedDistance >= 1.0f) return 0;
+        return 10 - (int)System.Math.Floor(System.Math.Max(0, normalizedDistance - 0.00001f) * 10);
     }
 
     /// <summary>
