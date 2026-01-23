@@ -2,6 +2,8 @@ using GoldTracker.Mobile.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MudBlazor;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 namespace GoldTracker.Mobile.Components.Pages
 {

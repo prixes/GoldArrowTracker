@@ -100,10 +100,10 @@ public class ImageProcessingService
     /// <summary>
     /// Draws the analysis results onto the image.
     /// </summary>
-    public async Task<string> DrawDetectionsOnImageAsync(byte[] imageBytes, TargetAnalysisResult analysisResult)
+    public async Task<string> DrawDetectionsOnImageAsync(byte[] imageBytes, TargetAnalysisResult analysisResult, int? sourceWidth = null, int? sourceHeight = null)
     {
 #if ANDROID
-        var annotatedBytes = await GoldTracker.Mobile.Platforms.Android.AndroidImageProcessor.DrawDetectionsAsync(imageBytes, analysisResult);
+        var annotatedBytes = await GoldTracker.Mobile.Platforms.Android.AndroidImageProcessor.DrawDetectionsAsync(imageBytes, analysisResult, sourceWidth, sourceHeight);
         return Convert.ToBase64String(annotatedBytes);
 #else
         // Fallback for non-Android platforms (e.g. Simulator/Windows)
@@ -116,6 +116,9 @@ public class ImageProcessingService
                 {
                     return Convert.ToBase64String(imageBytes);
                 }
+
+                // If non-android drawing logic is needed with scaling, it would be implemented here.
+                // For now, мы фокусируемся на Android.
 
                 var font = await GetFontAsync();
 
@@ -137,6 +140,52 @@ public class ImageProcessingService
                 return Convert.ToBase64String(imageBytes);
             }
         });
+#endif
+    }
+
+    /// <summary>
+    /// Gets the dimensions of an image from its bytes.
+    /// </summary>
+    public async Task<(int Width, int Height)> GetImageDimensionsAsync(byte[] imageBytes)
+    {
+        if (imageBytes == null || imageBytes.Length == 0) return (1024, 1024);
+#if ANDROID
+        return await Task.Run(() => {
+            var options = new global::Android.Graphics.BitmapFactory.Options { InJustDecodeBounds = true };
+            global::Android.Graphics.BitmapFactory.DecodeByteArray(imageBytes, 0, imageBytes.Length, options);
+            
+            int width = options.OutWidth;
+            int height = options.OutHeight;
+
+            // Check EXIF rotation to correctly report dimensions as they appear in UI
+            if (imageBytes.Length > 2 && imageBytes[0] == 0xFF && imageBytes[1] == 0xD8)
+            {
+                try
+                {
+                    using var stream = new MemoryStream(imageBytes);
+                    var exif = new global::Android.Media.ExifInterface(stream);
+                    var orientation = exif.GetAttributeInt(global::Android.Media.ExifInterface.TagOrientation, 1);
+                    
+                    // 6: 90 deg, 8: 270 deg, 5: 90 deg + flip, 7: 270 deg + flip
+                    if (orientation == 6 || orientation == 8 || orientation == 5 || orientation == 7)
+                    {
+                        return (height, width);
+                    }
+                }
+                catch { /* Ignore EXIF errors */ }
+            }
+
+            return (width, height);
+        });
+#else
+        try
+        {
+            return await Task.Run(() => {
+                var info = SixLabors.ImageSharp.Image.Identify(imageBytes);
+                return info != null ? (info.Width, info.Height) : (1024, 1024);
+            });
+        }
+        catch { return (1024, 1024); }
 #endif
     }
 

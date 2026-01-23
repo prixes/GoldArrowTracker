@@ -305,7 +305,7 @@ public static class AndroidImageProcessor
                 // 5. Compress to Byte Array
                 using var stream = new MemoryStream();
                 // We are already inside Task.Run from line 188, so we can call synchronous Compress directly.
-                scaledBitmap.Compress(AndroidGraphics.Bitmap.CompressFormat.Jpeg, quality, stream);
+                scaledBitmap.Compress(AndroidGraphics.Bitmap.CompressFormat.Jpeg!, quality, stream);
                 
                 if (scaledBitmap != null)
                 {
@@ -327,7 +327,7 @@ public static class AndroidImageProcessor
     /// Draws analysis detections onto an image using native Android Canvas.
     /// This is EXTREMELY fast compared to ImageSharp.
     /// </summary>
-    public static async Task<byte[]> DrawDetectionsAsync(byte[] imageBytes, TargetAnalysisResult analysisResult, int quality = 80)
+    public static async Task<byte[]> DrawDetectionsAsync(byte[] imageBytes, TargetAnalysisResult analysisResult, int? sourceWidth = null, int? sourceHeight = null, int quality = 80)
     {
         return await Task.Run(() =>
         {
@@ -357,6 +357,12 @@ public static class AndroidImageProcessor
 
                 using var canvas = new AndroidGraphics.Canvas(mutableBitmap);
                 
+                // Calculate scale if source dimensions are provided
+                float scaleX = 1.0f;
+                float scaleY = 1.0f;
+                if (sourceWidth.HasValue && sourceWidth.Value > 0) scaleX = (float)mutableBitmap.Width / sourceWidth.Value;
+                if (sourceHeight.HasValue && sourceHeight.Value > 0) scaleY = (float)mutableBitmap.Height / sourceHeight.Value;
+
                 // Pains for drawing
                 using var arrowPaint = new AndroidGraphics.Paint { Color = AndroidGraphics.Color.Green, StrokeWidth = 3 };
                 arrowPaint.SetStyle(AndroidGraphics.Paint.Style.Stroke);
@@ -382,12 +388,17 @@ public static class AndroidImageProcessor
                 {
                     if (detection.IsTargetFace) continue; // Don't draw raw target detection
 
+                    float detX = detection.X * scaleX;
+                    float detY = detection.Y * scaleY;
+                    float detW = detection.Width * scaleX;
+                    float detH = detection.Height * scaleY;
+
                     // Ellipse for detection
                     var rect = new AndroidGraphics.RectF(
-                        detection.X - detection.Width / 2, 
-                        detection.Y - detection.Height / 2, 
-                        detection.X + detection.Width / 2, 
-                        detection.Y + detection.Height / 2);
+                        detX - detW / 2, 
+                        detY - detH / 2, 
+                        detX + detW / 2, 
+                        detY + detH / 2);
                     
                     canvas.DrawOval(rect, shadowPaint);
                     canvas.DrawOval(rect, arrowPaint);
@@ -396,10 +407,10 @@ public static class AndroidImageProcessor
                 // 2. Draw calculated target rings (full 10-ring guide for transparency)
                 if (analysisResult.TargetRadius > 0)
                 {
-                    float cx = analysisResult.TargetCenter.X;
-                    float cy = analysisResult.TargetCenter.Y;
-                    float rx = analysisResult.TargetRadius;
-                    float ry = analysisResult.TargetRadiusY > 0 ? analysisResult.TargetRadiusY : rx;
+                    float cx = analysisResult.TargetCenterX * scaleX;
+                    float cy = analysisResult.TargetCenterY * scaleY;
+                    float rx = analysisResult.TargetRadius * scaleX;
+                    float ry = (analysisResult.TargetRadiusY > 0 ? analysisResult.TargetRadiusY : analysisResult.TargetRadius) * scaleY;
 
                     // Draw all 10 rings as subtle elliptical guides
                     using var guidePaint = new AndroidGraphics.Paint();
@@ -433,8 +444,8 @@ public static class AndroidImageProcessor
                 foreach (var arrow in analysisResult.ArrowScores)
                 {
                     // Draw a thin red plus sign at the arrow center
-                    float x = arrow.Detection.CenterX;
-                    float y = arrow.Detection.CenterY;
+                    float x = arrow.Detection.CenterX * scaleX;
+                    float y = arrow.Detection.CenterY * scaleY;
                     float size = 12; // Larger for visibility
                     
                     // Draw with a very thin shadow for contrast
@@ -444,11 +455,8 @@ public static class AndroidImageProcessor
                     canvas.DrawLine(x - size, y, x + size, y, pointPaint);
                     canvas.DrawLine(x, y - size, x, y + size, pointPaint);
                     
-                    var scoreText = $"{arrow.Points} ({arrow.Detection.Confidence:P0})";
-                    float textX = arrow.Detection.CenterX + 25;
-                    float textY = arrow.Detection.CenterY - 25;
-                    canvas.DrawText(scoreText, textX, textY, textOutlinePaint);
-                    canvas.DrawText(scoreText, textX, textY, textPaint);
+                    // Reduced redundant text labels that overlap the image.
+                    // Labels are now shown in the magnifier/zoom view for a cleaner interface.
                 }
 
                 // Compress back to bytes

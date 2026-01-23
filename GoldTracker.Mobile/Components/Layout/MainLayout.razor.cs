@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using GoldTracker.Mobile.Services.Sessions;
 
 namespace GoldTracker.Mobile.Components.Layout
 {
@@ -7,6 +8,12 @@ namespace GoldTracker.Mobile.Components.Layout
     {
         [Inject] private IJSRuntime JS { get; set; } = default!;
         [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+        [Inject] private ISessionState SessionState { get; set; } = default!;
+
+        protected override async Task OnInitializedAsync()
+        {
+            await SessionState.InitializeAsync();
+        }
 
         private async Task GoBack()
         {

@@ -3,8 +3,25 @@
 @using Archery.Shared.Models
 
 <MudContainer MaxWidth="MaxWidth.Small">
-    @if (!_analysisComplete)
+    @if (IsEditingExistingEnd && !_analysisComplete)
     {
+        <MudPaper Elevation="0" Class="px-4 py-6">
+            <MudText Typo="Typo.h6" GutterBottom="true" Class="font-weight-bold">
+                Loading End @endIndex
+            </MudText>
+            <MudProgressLinear Indeterminate="true" Class="mt-2" />
+        </MudPaper>
+    }
+    else if (!_analysisComplete)
+    {
+        @if (IsEditingExistingEnd)
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4 pt-4">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="GoBack" />
+                <MudText Typo="Typo.h6" Class="font-weight-bold">Exit Edit Mode</MudText>
+            </MudStack>
+        }
+
         <!-- Selection Screen -->
         <MudPaper Elevation="0" Class="px-4 py-6">
             <MudText Typo="Typo.h6" GutterBottom="true" Class="font-weight-bold">
@@ -160,6 +177,14 @@
     }
     else
     {
+        @if (IsEditingExistingEnd)
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4 pt-4 px-4">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="GoBack" />
+                <MudText Typo="Typo.h6" Class="font-weight-bold">End Details</MudText>
+            </MudStack>
+        }
+
         <!-- Results Screen -->
         <MudPaper Elevation="0" Class="px-4 py-6">
             @if (_analysisResult?.Status == AnalysisStatus.Failure)
@@ -250,7 +275,7 @@
 
             <MudStack Spacing="2">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large" OnClick="SaveResultAsync">
-                    Save Result
+                    @(IsEditingExistingEnd ? "Update End" : (SessionState.IsSessionActive ? "Add to Session" : "Save Result"))
                 </MudButton>
                 <MudButton Variant="Variant.Outlined" Color="Color.Warning" FullWidth="true" Size="Size.Medium" OnClick="EnterReviewMode" StartIcon="@Icons.Material.Filled.Edit">
                     Correct Detections

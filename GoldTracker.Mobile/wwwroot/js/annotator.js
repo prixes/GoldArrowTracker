@@ -189,7 +189,8 @@ var annotator = {
 
                 this.boxes.forEach((box, index) => {
                     const isSelected = index === this.selectedBoxIndex;
-                    if (this.showBoxes || isSelected) {
+                    // Draw box if it's not hidden OR if it's selected
+                    if ((this.showBoxes && !box.hidden) || isSelected) {
                         this.drawBox(box, isSelected);
                     }
                 });
@@ -294,11 +295,39 @@ var annotator = {
                 this.ctx.restore();
 
                 // Draw magnifier border
-                this.ctx.strokeStyle = '#FFF';
-                this.ctx.lineWidth = 2;
-                this.ctx.beginPath();
                 this.ctx.arc(magX + this.magnifierSize / 2, magY + this.magnifierSize / 2, this.magnifierSize / 2, 0, Math.PI * 2);
                 this.ctx.stroke();
+
+                // Draw label in magnifier
+                if (box.label && box.label !== 'target') {
+                    this.ctx.font = 'bold 14px Arial';
+                    const textWidth = this.ctx.measureText(box.label).width;
+                    const bgWidth = textWidth + 10;
+
+                    this.ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                    this.ctx.fillRect(magX + 5, magY + 5, bgWidth, 20);
+
+                    this.ctx.fillStyle = 'cyan';
+                    this.ctx.textBaseline = 'top';
+                    this.ctx.fillText(box.label, magX + 10, magY + 8);
+                }
+            },
+
+            isInside: function (pos, box) {
+                const x = box.startX * this.canvas.width;
+                const y = box.startY * this.canvas.height;
+                const w = (box.endX - box.startX) * this.canvas.width;
+                const h = (box.endY - box.startY) * this.canvas.height;
+                const cx = x + w / 2;
+                const cy = y + h / 2;
+                const rx = Math.abs(w / 2);
+                const ry = Math.abs(h / 2);
+
+                const dx = pos.x - cx;
+                const dy = pos.y - cy;
+
+                // Elliptical hit test: (x/rx)^2 + (y/ry)^2 <= 1
+                return (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1.0;
             },
 
             isNearEdge: function (pos, box) {
@@ -314,7 +343,8 @@ var annotator = {
                 const dist = Math.sqrt(dx * dx + dy * dy);
 
                 const r = (Math.abs(w / 2) + Math.abs(h / 2)) / 2;
-                const tolerance = Math.max(15, r * 0.25); // Min 15px or 25% of radius
+                // Precise selection: max 20px or 10% of radius
+                const tolerance = Math.min(20, Math.max(10, r * 0.1));
 
                 return Math.abs(dist - r) < tolerance;
             },
@@ -324,6 +354,7 @@ var annotator = {
                 let minIndex = -1;
 
                 for (let i = 0; i < this.boxes.length; i++) {
+                    // Only select by edge to allow drawing inside larger objects
                     if (this.isNearEdge(pos, this.boxes[i])) {
                         const w = (this.boxes[i].endX - this.boxes[i].startX) * this.canvas.width;
                         const h = (this.boxes[i].endY - this.boxes[i].startY) * this.canvas.height;
@@ -599,9 +630,9 @@ var annotator = {
         const inst = this.instances.get(id);
         if (inst) {
             window.removeEventListener('resize', inst.onResize);
-            // Replace canvas to remove listeners
-            const newCanvas = inst.canvas.cloneNode(true);
-            inst.canvas.replaceWith(newCanvas);
+            // In Blazor, don't replace the canvas or it breaks @ref
+            // Only remove listeners if possible, but cloning is safer for standard JS
+            // For now, let's just delete the instance and ignore listeners (Blazor usually destroys the node anyway)
             this.instances.delete(id);
         }
     }

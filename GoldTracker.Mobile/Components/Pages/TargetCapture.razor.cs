@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Archery.Shared.Models;
 using GoldTracker.Mobile.Services;
+using GoldTracker.Mobile.Services.Sessions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MudBlazor;
@@ -15,11 +16,22 @@ namespace GoldTracker.Mobile.Components.Pages
         [Inject] private NavigationManager Navigation { get; set; } = default!;
         [Inject] private ISnackbar Snackbar { get; set; } = default!;
         [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+        [Inject] private ISessionState SessionState { get; set; } = default!;
+        [Inject] private ISessionService SessionService { get; set; } = default!;
 
+        [SupplyParameterFromQuery] public Guid? sessionId { get; set; }
+        [SupplyParameterFromQuery] public int? endIndex { get; set; }
+        [SupplyParameterFromQuery] public string? editMode { get; set; }
+
+        private bool IsEditingExistingEnd => sessionId.HasValue && endIndex.HasValue;
+
+        private Guid? _existingEndId;
         private string? _originalImagePath;
         private byte[]? _originalImageBytes;
         private string _originalImageBase64 = string.Empty;
         private string _annotatedImageBase64 = string.Empty;
+        private int _originalWidth = 1024;
+        private int _originalHeight = 1024;
 
         private bool _isLoading = false;
         private bool _analysisComplete = false;
@@ -61,10 +73,105 @@ namespace GoldTracker.Mobile.Components.Pages
         }
 
 
-        protected override void OnInitialized()
+        protected override async Task OnInitializedAsync()
         {
             // Fire and forget thumbnail loading so page transition is instant
             _ = Task.Run(async () => await LoadStoredImagesAsync());
+
+            if (IsEditingExistingEnd)
+            {
+                await LoadExistingEndAsync();
+            }
+        }
+
+        private async Task LoadExistingEndAsync()
+        {
+            _isLoading = true;
+            try
+            {
+                Session? session;
+                if (SessionState.CurrentSession?.Id == sessionId)
+                {
+                    session = SessionState.CurrentSession;
+                }
+                else
+                {
+                    session = await SessionService.GetSessionAsync(sessionId!.Value);
+                }
+
+                if (session == null) return;
+
+                var end = session.Ends.FirstOrDefault(e => e.Index == endIndex);
+                if (end == null || string.IsNullOrEmpty(end.ImagePath)) return;
+
+                _existingEndId = end.Id;
+
+                _originalImagePath = end.ImagePath;
+                var rawBytes = await System.IO.File.ReadAllBytesAsync(end.ImagePath);
+                
+                // Keep original dimensions for coordinate scaling
+                var dims = await ImageProcessingService.GetImageDimensionsAsync(rawBytes);
+                _originalWidth = dims.Width;
+                _originalHeight = dims.Height;
+
+                _originalImageBytes = await ImageProcessingService.ResizeImageAsync(rawBytes, 1024, 80, end.ImagePath);
+                _originalImageBase64 = Convert.ToBase64String(_originalImageBytes);
+
+                // Reconstruct Analysis Result from End
+                _analysisResult = new TargetAnalysisResult
+                {
+                    Status = AnalysisStatus.Success,
+                    TargetCenterX = end.TargetCenterX,
+                    TargetCenterY = end.TargetCenterY,
+                    TargetRadius = end.TargetRadius,
+                    TargetRadiusY = end.TargetRadiusY,
+                    Detections = end.Arrows.Select(a => a.Detection != null ? new ObjectDetectionResult
+                    {
+                        ClassId = MapPointsToClassId(a.Points),
+                        ClassName = a.Points.ToString(),
+                        Confidence = a.Detection.Confidence,
+                        X = a.Detection.CenterX,
+                        Y = a.Detection.CenterY,
+                        Width = a.Detection.Radius * 2,
+                        Height = a.Detection.Radius * 2
+                    } : null).Where(d => d != null).ToList()!
+                };
+
+                // Add synthetic target detection for review mode if metadata exists
+                if (end.TargetRadius > 0)
+                {
+                    _analysisResult.Detections.Add(new ObjectDetectionResult
+                    {
+                        ClassId = 10, // Target Face
+                        ClassName = "target",
+                        Confidence = 1.0f,
+                        X = end.TargetCenterX,
+                        Y = end.TargetCenterY,
+                        Width = end.TargetRadius * 2,
+                        Height = (end.TargetRadiusY > 0 ? end.TargetRadiusY : end.TargetRadius) * 2
+                    });
+                }
+
+                // Add target detection if present (we might need to store it better, but for now let's try to find it)
+                // Actually, if it's missing, the user will have to add it.
+
+                _annotatedImageBase64 = await ImageProcessingService.DrawDetectionsOnImageAsync(_originalImageBytes, _analysisResult, _originalWidth, _originalHeight);
+                _analysisComplete = true;
+
+                if (editMode == "review")
+                {
+                    await EnterReviewMode();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error loading end: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                _isLoading = false;
+                StateHasChanged();
+            }
         }
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -79,7 +186,8 @@ namespace GoldTracker.Mobile.Components.Pages
                 await JSRuntime.InvokeVoidAsync("annotator.init", _resultCanvasElement, _resultImageElement, _dotNetObjectReference, true, false);
 
                 // Get dimensions for normalization
-                var (imgWidth, imgHeight) = await GetImageDimensionsAsync();
+                var imgWidth = _originalWidth;
+                var imgHeight = _originalHeight;
                 
                 // Load existing detections as non-editable boxes
                 var boxesForJs = _analysisResult.Detections
@@ -132,26 +240,7 @@ namespace GoldTracker.Mobile.Components.Pages
             }
         }
 
-        private async Task<(int Width, int Height)> GetImageDimensionsAsync()
-        {
-            if (_originalImageBytes == null) return (1024, 1024);
-#if ANDROID
-            return await Task.Run(() => {
-                var options = new global::Android.Graphics.BitmapFactory.Options { InJustDecodeBounds = true };
-                global::Android.Graphics.BitmapFactory.DecodeByteArray(_originalImageBytes, 0, _originalImageBytes.Length, options);
-                return (options.OutWidth, options.OutHeight);
-            });
-#else
-            try
-            {
-                return await Task.Run(() => {
-                    var info = SixLabors.ImageSharp.Image.Identify(_originalImageBytes);
-                    return info != null ? (info.Width, info.Height) : (1024, 1024);
-                });
-            }
-            catch { return (1024, 1024); }
-#endif
-        }
+
 
         private async Task LoadStoredImagesAsync()
         {
@@ -248,6 +337,11 @@ namespace GoldTracker.Mobile.Components.Pages
                 _originalImagePath = imagePath;
                 var rawBytes = await System.IO.File.ReadAllBytesAsync(imagePath);
                 
+                // Keep original dimensions for coordinate scaling
+                var dims = await ImageProcessingService.GetImageDimensionsAsync(rawBytes);
+                _originalWidth = dims.Width;
+                _originalHeight = dims.Height;
+
                 // Resize to max 1024px for faster processing and display
                 _originalImageBytes = await ImageProcessingService.ResizeImageAsync(rawBytes, 1024, 80, imagePath);
                 
@@ -276,10 +370,17 @@ namespace GoldTracker.Mobile.Components.Pages
             {
                 _analysisResult = await ImageProcessingService.AnalyzeTargetFromBytesAsync(_originalImageBytes, _originalImagePath);
 
+                // Scale result up to original dimensions because analysis was on 1024 preview
+                if (_analysisResult != null && _originalImageBytes != null)
+                {
+                    var previewDims = await ImageProcessingService.GetImageDimensionsAsync(_originalImageBytes);
+                    ScaleResult(_analysisResult, _originalWidth, _originalHeight, previewDims.Width, previewDims.Height);
+                }
+
                 // Always attempt to draw detections if original image bytes exist and analysisResult is available
                 if (_originalImageBytes != null && _analysisResult != null)
                 {
-                    _annotatedImageBase64 = await ImageProcessingService.DrawDetectionsOnImageAsync(_originalImageBytes, _analysisResult);
+                    _annotatedImageBase64 = await ImageProcessingService.DrawDetectionsOnImageAsync(_originalImageBytes, _analysisResult, _originalWidth, _originalHeight);
                 }
                 else
                 {
@@ -324,8 +425,79 @@ namespace GoldTracker.Mobile.Components.Pages
 
             try
             {
-                // TODO: Save to database or local storage
-                Snackbar.Add("Result saved!", Severity.Success);
+                if (IsEditingExistingEnd)
+                {
+                    var updatedEnd = new SessionEnd
+                    {
+                         Id = _existingEndId ?? Guid.NewGuid(),
+                         Timestamp = DateTime.Now,
+                         ImagePath = _originalImagePath,
+                         TargetRadius = _analysisResult.TargetRadius,
+                         TargetRadiusY = _analysisResult.TargetRadiusY > 0 ? _analysisResult.TargetRadiusY : _analysisResult.TargetRadius,
+                         TargetCenterX = _analysisResult.TargetCenterX,
+                         TargetCenterY = _analysisResult.TargetCenterY,
+                         Arrows = _analysisResult.ArrowScores.Select(a => new ArrowScore
+                         {
+                             Points = a.Points,
+                             Ring = a.Ring,
+                             DistanceFromCenter = a.DistanceFromCenter,
+                             Detection = a.Detection
+                         }).ToList()
+                    };
+
+                    await SessionState.UpdateEndAsync(sessionId!.Value, endIndex!.Value, updatedEnd);
+                    Snackbar.Add("End updated!", Severity.Success);
+                    Navigation.NavigateTo($"/session-end/{sessionId}/{endIndex}");
+                    return;
+                }
+
+                if (SessionState.IsSessionActive)
+                {
+                    // Create SessionEnd from Analysis Result
+                    var end = new SessionEnd
+                    {
+                        Timestamp = DateTime.Now,
+                        ImagePath = _originalImagePath,
+                        TargetRadius = _analysisResult.TargetRadius,
+                        TargetRadiusY = _analysisResult.TargetRadiusY > 0 ? _analysisResult.TargetRadiusY : _analysisResult.TargetRadius,
+                        TargetCenterX = _analysisResult.TargetCenterX,
+                        TargetCenterY = _analysisResult.TargetCenterY,
+                        Arrows = _analysisResult.ArrowScores.Select(a => new ArrowScore 
+                        { 
+                            Points = a.Points,
+                            Ring = a.Ring,
+                            DistanceFromCenter = a.DistanceFromCenter,
+                            Detection = a.Detection 
+                        }).ToList()
+                    };
+                    
+                    // If image path is null (e.g. fresh capture not saved to gallery), we should save it to app data
+                    if (string.IsNullOrEmpty(end.ImagePath) && _originalImageBytes != null)
+                    {
+                         // Using CameraService to save internally if implemented, or we can just save to session dir
+                         // For now, let's assume CameraService handles temporary files or we save it specifically.
+                         // Simplification: Reuse the temporary file if possible or save new.
+                         // Creating a specific directory for session images would be better.
+                         var fileName = $"{Guid.NewGuid()}.jpg";
+                         var sessionImagesDir = Path.Combine(FileSystem.AppDataDirectory, "session_images");
+                         if (!Directory.Exists(sessionImagesDir)) Directory.CreateDirectory(sessionImagesDir);
+                         
+                         var finalPath = Path.Combine(sessionImagesDir, fileName);
+                         await File.WriteAllBytesAsync(finalPath, _originalImageBytes);
+                         end.ImagePath = finalPath;
+                    }
+
+                    await SessionState.AddEndAsync(end);
+                    Snackbar.Add($"Added end to session!", Severity.Success);
+                    Navigation.NavigateTo("/session-live");
+                }
+                else
+                {
+                    // Standalone save (future work: save to history without session?)
+                     Snackbar.Add("Result saved! (Standalone)", Severity.Success);
+                     // Maybe navigate to sessions or home?
+                     Navigation.NavigateTo("/sessions");
+                }
             }
             catch (Exception ex)
             {
@@ -373,7 +545,8 @@ namespace GoldTracker.Mobile.Components.Pages
             if (_analysisResult == null || _originalImageBytes == null) return;
 
             // Get image dimensions to normalize coordinates
-            var (imgWidth, imgHeight) = await GetImageDimensionsAsync();
+            var imgWidth = _originalWidth;
+            var imgHeight = _originalHeight;
 
             _corrections.Clear();
             _dotNetObjectReference = DotNetObjectReference.Create(this);
@@ -519,6 +692,12 @@ namespace GoldTracker.Mobile.Components.Pages
                 
                 // Export to YOLO dataset (automatic, underneath)
                 await ExportToYoloDatasetAsync();
+
+                if (IsEditingExistingEnd)
+                {
+                    await SaveResultAsync();
+                    return;
+                }
             }
 
             // Cleanup annotator
@@ -541,8 +720,9 @@ namespace GoldTracker.Mobile.Components.Pages
         {
             if (_analysisResult == null) return;
 
-            // Get image dimensions for coordinate conversion
-            var (imgWidth, imgHeight) = await GetImageDimensionsAsync();
+            // Use stored original dimensions for coordinate conversion
+            var imgWidth = _originalWidth;
+            var imgHeight = _originalHeight;
 
             // Clear existing data
             _analysisResult.ArrowScores.Clear();
@@ -571,7 +751,8 @@ namespace GoldTracker.Mobile.Components.Pages
                 int points = MapClassIdToPoints(correction.CorrectedClassId);
                 if (points == 100) // Target Face
                 {
-                    _analysisResult.TargetCenter = (detection.X, detection.Y);
+                    _analysisResult.TargetCenterX = detection.X;
+                    _analysisResult.TargetCenterY = detection.Y;
                     _analysisResult.TargetRadius = detection.Width / 2.0f;
                     _analysisResult.TargetRadiusY = detection.Height / 2.0f;
                 }
@@ -598,7 +779,7 @@ namespace GoldTracker.Mobile.Components.Pages
             // Redraw the annotated image with corrections
             if (_originalImageBytes != null && _analysisResult != null)
             {
-                _annotatedImageBase64 = await ImageProcessingService.DrawDetectionsOnImageAsync(_originalImageBytes, _analysisResult);
+                _annotatedImageBase64 = await ImageProcessingService.DrawDetectionsOnImageAsync(_originalImageBytes, _analysisResult, _originalWidth, _originalHeight);
             }
         }
 
@@ -844,12 +1025,59 @@ namespace GoldTracker.Mobile.Components.Pages
                 return (0, 0);
 
             // Calculate offset from target center in pixels
-            float dx = arrow.Detection.CenterX - _analysisResult.TargetCenter.X;
-            float dy = arrow.Detection.CenterY - _analysisResult.TargetCenter.Y;
+            float dx = arrow.Detection.CenterX - _analysisResult.TargetCenterX;
+            float dy = arrow.Detection.CenterY - _analysisResult.TargetCenterY;
 
-            // Normalize by target radius (X and Y separately to "flatten" perspective)
-            // Result will be -1 to 1 regardless of tilt
+            // Rotation Fix: The user reports 90 degree rotation issues. 
+            // Reverting to plain to re-assess with user.
             return (dx / _analysisResult.TargetRadius, dy / _analysisResult.TargetRadiusY);
+        }
+
+        private void ScaleResult(TargetAnalysisResult result, int targetW, int targetH, int sourceW, int sourceH)
+        {
+            if (sourceW <= 0 || sourceH <= 0) return;
+
+            float scaleX = (float)targetW / sourceW;
+            float scaleY = (float)targetH / sourceH;
+
+            // Scale Target Face
+            result.TargetCenterX *= scaleX;
+            result.TargetCenterY *= scaleY;
+            result.TargetRadius *= scaleX;
+            result.TargetRadiusY *= scaleY;
+
+            // Scale All Detections
+            foreach (var d in result.Detections)
+            {
+                d.X *= scaleX;
+                d.Y *= scaleY;
+                d.Width *= scaleX;
+                d.Height *= scaleY;
+            }
+
+            // Scale Arrow Scores
+            foreach (var a in result.ArrowScores)
+            {
+                if (a.Detection != null)
+                {
+                    a.Detection.CenterX *= scaleX;
+                    a.Detection.CenterY *= scaleY;
+                    a.Detection.Radius *= scaleX; // Approx
+                }
+                a.DistanceFromCenter *= scaleX; // Approx
+            }
+        }
+
+        private void GoBack()
+        {
+            if (IsEditingExistingEnd)
+            {
+                Navigation.NavigateTo($"/session-end/{sessionId}/{endIndex}");
+            }
+            else
+            {
+                Navigation.NavigateTo("/capture");
+            }
         }
 
         #endregion

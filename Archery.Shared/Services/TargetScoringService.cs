@@ -64,7 +64,8 @@ public class TargetScoringService : ITargetScoringService
             }
 
             // 3. Extract target center and radii
-            result.TargetCenter = (targetDetection.X, targetDetection.Y);
+            result.TargetCenterX = targetDetection.X;
+            result.TargetCenterY = targetDetection.Y;
             result.TargetRadius = targetDetection.Width / 2f;
             result.TargetRadiusY = targetDetection.Height / 2f;
             result.Status = AnalysisStatus.Success;
@@ -90,8 +91,8 @@ public class TargetScoringService : ITargetScoringService
                 result.DetectedArrows.Add(arrowDetection);
 
                 // Calculate elliptical normalized distance for perspective awareness
-                float dx = arrowDetection.CenterX - result.TargetCenter.X;
-                float dy = arrowDetection.CenterY - result.TargetCenter.Y;
+                float dx = arrowDetection.CenterX - result.TargetCenterX;
+                float dy = arrowDetection.CenterY - result.TargetCenterY;
                 
                 // Normalized distance: r = sqrt((dx/rx)^2 + (dy/ry)^2)
                 // This "flattens" the perspective distortion.

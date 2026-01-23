@@ -201,8 +201,8 @@ public class TargetScoringServiceTests
 
         // Assert
         Assert.Equal(AnalysisStatus.Success, result.Status);
-        Assert.Equal(100, result.TargetCenter.X);
-        Assert.Equal(100, result.TargetCenter.Y);
+        Assert.Equal(100, result.TargetCenterX);
+        Assert.Equal(100, result.TargetCenterY);
         Assert.Equal(100, result.TargetRadius); // Half of width/height
         Assert.Equal(2, result.DetectedArrows.Count);
 

@@ -37,9 +37,14 @@ public class TargetAnalysisResult
     public int TotalScore { get; set; }
 
     /// <summary>
-    /// Gets or sets the detected center of the target (in pixels from image top-left).
+    /// Gets or sets the X coordinate of the target center in pixels.
     /// </summary>
-    public (float X, float Y) TargetCenter { get; set; }
+    public float TargetCenterX { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Y coordinate of the target center in pixels.
+    /// </summary>
+    public float TargetCenterY { get; set; }
 
     /// <summary>
     /// Gets or sets the estimated horizontal radius (X) of the target in pixels.

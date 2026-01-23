@@ -1,0 +1,93 @@
+@page "/session-live"
+@namespace GoldTracker.Mobile.Components.Pages.Sessions
+@using Archery.Shared.Models
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-4 archery-container" Style="padding-bottom: 80px;">
+    @if (SessionState.CurrentSession == null)
+    {
+        <MudAlert Severity="Severity.Info">No active session. Please start one from the Sessions page.</MudAlert>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" OnClick="@(() => Navigation.NavigateTo("/sessions"))">Go to Sessions</MudButton>
+    }
+    else
+    {
+        <MudStack Spacing="2" Class="mb-4">
+            <MudText Typo="Typo.h5" Class="font-weight-bold">Current Session</MudText>
+            @if (!string.IsNullOrEmpty(SessionState.CurrentSession.Topic))
+            {
+                <MudText Typo="Typo.subtitle1" Color="Color.Secondary">@SessionState.CurrentSession.Topic</MudText>
+            }
+        </MudStack>
+
+        <!-- Summary Statistics -->
+        <MudPaper Class="pa-4 mb-4" Elevation="0" Style="background: linear-gradient(135deg, #182848 0%, #4b6cb7 100%); border-radius: 12px; color: white;">
+            <MudGrid>
+                <MudItem xs="4" Class="d-flex flex-column align-center">
+                    <MudText Typo="Typo.caption" Style="opacity: 0.8;">SCORE</MudText>
+                    <MudText Typo="Typo.h4" Class="font-weight-bold">@SessionState.CurrentSession.TotalScore</MudText>
+                </MudItem>
+                <MudItem xs="4" Class="d-flex flex-column align-center">
+                    <MudText Typo="Typo.caption" Style="opacity: 0.8;">ARROWS</MudText>
+                    <MudText Typo="Typo.h4" Class="font-weight-bold">@SessionState.CurrentSession.TotalArrows</MudText>
+                </MudItem>
+                <MudItem xs="4" Class="d-flex flex-column align-center">
+                    <MudText Typo="Typo.caption" Style="opacity: 0.8;">AVG</MudText>
+                    <MudText Typo="Typo.h4" Class="font-weight-bold">@SessionState.CurrentSession.ArrowAverage.ToString("F1")</MudText>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <!-- Ends List -->
+        <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Ends (@SessionState.CurrentSession.Ends.Count)</MudText>
+        
+        @if (!SessionState.CurrentSession.Ends.Any())
+        {
+            <MudPaper Class="pa-6 d-flex flex-column align-center justify-center mud-width-full" Elevation="0" Style="background: transparent; border: 1px dashed var(--mud-palette-lines-default);">
+                <MudText Typo="Typo.body2" Align="Align.Center" Color="Color.Default" Style="opacity: 0.7;">No ends recorded yet.</MudText>
+                <MudText Typo="Typo.caption" Align="Align.Center" Color="Color.Default" Style="opacity: 0.5;">Tap "Add End" to capture your first shots.</MudText>
+            </MudPaper>
+        }
+        else
+        {
+            <MudStack Spacing="2">
+                @foreach (var end in SessionState.CurrentSession.Ends.OrderByDescending(e => e.Index))
+                {
+                    <div class="cursor-pointer" @onclick="() => NavigateToEnd(end.Index)">
+                        <MudPaper Elevation="0" Class="pa-3 rounded-lg" Style="border: 1px solid var(--mud-palette-lines-default);">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">End @end.Index</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Default">@end.Timestamp.ToString("t") • @end.ArrowCount arrows</MudText>
+                                </MudStack>
+                                 
+                                <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                     @foreach (var arrow in end.Arrows.OrderByDescending(a => a.Points).Take(6))
+                                     {
+                                         <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="GetArrowColor(arrow.Points)" Class="mx-0" Style="min-width: 24px; text-align: center; font-weight: bold; padding-left: 6px; padding-right: 6px;">
+                                             @(arrow.Points == 100 ? "X" : arrow.Points.ToString())
+                                         </MudChip>
+                                     }
+                                </MudStack>
+                                
+                                <MudAvatar Color="Color.Surface" Variant="Variant.Filled" Size="Size.Small" Style="font-weight: bold; color: var(--mud-palette-text-primary); border: 1px solid var(--mud-palette-lines-default);">
+                                    @end.Score
+                                </MudAvatar>
+                            </MudStack>
+                        </MudPaper>
+                    </div>
+                }
+            </MudStack>
+        }
+
+        <!-- Bottom Actions -->
+        <MudAppBar Bottom="true" Fixed="true" Color="Color.Surface" Elevation="4" Class="px-4 py-2" Style="height: auto;">
+             <MudStack Row="true" Spacing="2" Style="width: 100%;">
+                 <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Filled.Check" OnClick="FinishSession" FullWidth="true" Class="py-2">
+                     Finish
+                 </MudButton>
+                 <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddEnd" FullWidth="true" Class="py-2" Style="flex-grow: 1.5;">
+                     Add End
+                 </MudButton>
+             </MudStack>
+        </MudAppBar>
+    }
+</MudContainer>

@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
 using GoldTracker.Mobile.Services;
+using GoldTracker.Mobile.Services.Sessions;
 using Archery.Shared.Models;
 using Archery.Shared.Services;
 
@@ -77,6 +78,10 @@ namespace GoldTracker.Mobile
 
             // Register Model Diagnostic Service
             builder.Services.AddScoped<ObjectDetectionModelDiagnosticService>();
+
+            // Register Session Services
+            builder.Services.AddSingleton<ISessionService, SessionService>();
+            builder.Services.AddSingleton<ISessionState, SessionState>();
             
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();

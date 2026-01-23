@@ -2,35 +2,43 @@
 @using MudBlazor
 
 <MudGrid Class="bottom-nav-bar align-content-center" Justify="Justify.SpaceAround" Spacing="0">
-    <MudItem xs="3">
+    <MudItem xs="2">
         <NavLink href="" Match="NavLinkMatch.All" Class="nav-link" ActiveClass="active-nav-item">
             <MudStack AlignItems="AlignItems.Center" Spacing="1">
                 <MudIcon Icon="@Icons.Material.Filled.Home" Size="Size.Small" Style="@(IsActive("", NavLinkMatch.All) ? "color: #FFD700;" : "color: inherit;")" />
-                <MudText Style="@(IsActive("", NavLinkMatch.All) ? "color: #FFD700;" : "color: inherit;")">Home</MudText>
+                <MudText Typo="Typo.caption" Style="@(IsActive("", NavLinkMatch.All) ? "color: #FFD700;" : "color: inherit;")">Home</MudText>
             </MudStack>
         </NavLink>
     </MudItem>
-    <MudItem xs="3">
+    <MudItem xs="2">
+        <NavLink href="sessions" Match="NavLinkMatch.Prefix" Class="nav-link" ActiveClass="active-nav-item">
+            <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Small" Style="@(IsActive("sessions") ? "color: #FFD700;" : "color: inherit;")" />
+                <MudText Typo="Typo.caption" Style="@(IsActive("sessions") ? "color: #FFD700;" : "color: inherit;")">Sessions</MudText>
+            </MudStack>
+        </NavLink>
+    </MudItem>
+    <MudItem xs="2">
         <NavLink href="target-capture" Match="NavLinkMatch.Prefix" Class="nav-link" ActiveClass="active-nav-item">
             <MudStack AlignItems="AlignItems.Center" Spacing="1">
                 <MudIcon Icon="@Icons.Material.Filled.Camera" Size="Size.Small" Style="@(IsActive("target-capture") ? "color: #FFD700;" : "color: inherit;")" />
-                <MudText Style="@(IsActive("target-capture") ? "color: #FFD700;" : "color: inherit;")">Capture</MudText>
+                <MudText Typo="Typo.caption" Style="@(IsActive("target-capture") ? "color: #FFD700;" : "color: inherit;")">Capture</MudText>
             </MudStack>
         </NavLink>
     </MudItem>
-    <MudItem xs="3">
+    <MudItem xs="2">
         <NavLink href="dataset-creation" Match="NavLinkMatch.Prefix" Class="nav-link" ActiveClass="active-nav-item">
             <MudStack AlignItems="AlignItems.Center" Spacing="1">
                 <MudIcon Icon="@Icons.Material.Filled.AddAPhoto" Size="Size.Small" Style="@(IsActive("dataset-creation") ? "color: #FFD700;" : "color: inherit;")" />
-                <MudText Style="@(IsActive("dataset-creation") ? "color: #FFD700;" : "color: inherit;")">Dataset</MudText>
+                <MudText Typo="Typo.caption" Style="@(IsActive("dataset-creation") ? "color: #FFD700;" : "color: inherit;")">Dataset</MudText>
             </MudStack>
         </NavLink>
     </MudItem>
-    <MudItem xs="3">
+    <MudItem xs="2">
         <NavLink href="settings" Match="NavLinkMatch.Prefix" Class="nav-link" ActiveClass="active-nav-item">
             <MudStack AlignItems="AlignItems.Center" Spacing="1">
                 <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Small" Style="@(IsActive("settings") ? "color: #FFD700;" : "color: inherit;")" />
-                <MudText Style="@(IsActive("settings") ? "color: #FFD700;" : "color: inherit;")">Settings</MudText>
+                <MudText Typo="Typo.caption" Style="@(IsActive("settings") ? "color: #FFD700;" : "color: inherit;")">Settings</MudText>
             </MudStack>
         </NavLink>
     </MudItem>
