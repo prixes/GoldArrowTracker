@@ -114,52 +114,51 @@
     }
     else if (_isReviewMode)
     {
-        <!-- Review Mode Screen -->
-        <MudPaper Elevation="0" Class="px-2 py-4">
-            <MudText Typo="Typo.h6" GutterBottom="true" Class="font-weight-bold">
-                Correct Detections
-            </MudText>
-            <MudText Typo="Typo.caption" Class="mb-4" Style="opacity: 0.7;">
-                Tap a detection to select, then drag in the magnifier to adjust position or tap a score button to change.
-            </MudText>
-
-            <div class="review-image-section" style="position: relative; width: 100%; max-height: 55vh; background-color: transparent; border-radius: 12px; overflow: hidden; display: flex; justify-content: center; align-items: center; touch-action: none; border: 2px solid var(--mud-palette-lines-default);">
-                <img @ref="_reviewImageElement" src="@($"data:image/jpeg;base64,{_originalImageBase64}")" alt="image to correct" style="max-width: 100%; max-height: 55vh; object-fit: contain; pointer-events: none; display: block;"/>
-                <canvas @ref="_reviewCanvasElement" id="correction-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none;"></canvas>
-            </div>
-
-            <MudCard Elevation="0" Class="mt-2 pa-2" Style="background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-radius: 12px;">
-                <MudText Typo="Typo.caption" Align="Align.Center" Class="mb-2 d-block" Style="opacity: 0.7; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">
-                    — Change Score —
+            <!-- Review Mode Screen -->
+            <div class="d-flex flex-column" style="height: calc(100vh - 80px);">
+                <MudText Typo="Typo.h6" Class="font-weight-bold px-4">Correct Detections</MudText>
+                <MudText Typo="Typo.caption" Class="px-4 mb-2" Style="opacity: 0.7;">
+                    Tap a detection to select, then drag to adjust or change score.
                 </MudText>
 
-                <div class="d-flex flex-wrap gap-1 justify-center align-center">
-                    @for (int i = 10; i >= 1; i--)
-                    {
-                        int score = i;
-                        <MudButton Variant="@(_selectedNewScore == score ? Variant.Filled : Variant.Outlined)"
-                                   Color="@GetScoreButtonMudColor(score)"
-                                   Size="Size.Medium"
-                                   Style="min-width: 40px; width: 40px; height: 40px; border-radius: 20px; padding: 0; font-weight: bold; font-size: 1rem;"
-                                   OnClick="@(() => SelectNewScore(score))">
-                            @score
-                        </MudButton>
-                    }
-                    <MudButton Variant="@(_selectedNewScore == 100 ? Variant.Filled : Variant.Outlined)"
-                               Color="@GetScoreButtonMudColor(100)"
-                               Size="Size.Small"
-                               Style="min-width: 40px; width: 40px; height: 40px; border-radius: 20px; padding: 0; font-weight: bold; font-size: 0.6rem;"
-                               OnClick="@(() => SelectNewScore(100))">
-                        Target
-                    </MudButton>
-                    <MudButton Variant="@(_selectedNewScore == 0 ? Variant.Filled : Variant.Outlined)" 
-                               Color="@GetScoreButtonMudColor(0)" 
-                               Size="Size.Medium"
-                               Style="min-width: 40px; width: 40px; height: 40px; border-radius: 20px; padding: 0; font-weight: bold; font-size: 1rem;"
-                               OnClick="@(() => SelectNewScore(0))">
-                        M
-                    </MudButton>
+                <div class="flex-grow-1 d-flex align-center justify-center pa-2" style="background: #222; overflow: hidden; position: relative; border-radius: 16px;">
+                    <!-- The scaling container: exactly matches image aspect ratio -->
+                    <div style="position: relative; width: fit-content; height: fit-content; max-width: 100%; max-height: 100%;">
+                        <img @ref="_reviewImageElement" src="@($"data:image/jpeg;base64,{_originalImageBase64}")" 
+                             alt="correct" style="display: block; max-width: 100%; max-height: 55vh; object-fit: contain; pointer-events: none;"/>
+                        <canvas @ref="_reviewCanvasElement" id="correction-canvas" 
+                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none;"></canvas>
+                    </div>
                 </div>
+
+                <MudCard Elevation="0" Class="mt-2 pa-2" Style="background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-radius: 12px; margin-bottom: 20px;">
+                    <div class="d-flex flex-wrap gap-1 justify-center align-center">
+                        @for (int i = 10; i >= 1; i--)
+                        {
+                            int score = i;
+                            <MudButton Variant="@(_selectedNewScore == score ? Variant.Filled : Variant.Outlined)"
+                                       Color="@GetScoreButtonMudColor(score)"
+                                       Size="Size.Medium"
+                                       Style="min-width: 38px; width: 38px; height: 38px; border-radius: 19px; padding: 0; font-weight: 800; font-size: 0.95rem;"
+                                       OnClick="@(() => SelectNewScore(score))">
+                                @score
+                            </MudButton>
+                        }
+                        <MudButton Variant="@(_selectedNewScore == 100 ? Variant.Filled : Variant.Outlined)"
+                                   Color="@GetScoreButtonMudColor(100)"
+                                   Size="Size.Small"
+                                   Style="min-width: 38px; width: 38px; height: 38px; border-radius: 19px; padding: 0; font-weight: 800; font-size: 0.55rem; line-height: 1;"
+                                   OnClick="@(() => SelectNewScore(100))">
+                            TARGET
+                        </MudButton>
+                        <MudButton Variant="@(_selectedNewScore == 0 ? Variant.Filled : Variant.Outlined)" 
+                                   Color="@GetScoreButtonMudColor(0)" 
+                                   Size="Size.Medium"
+                                   Style="min-width: 38px; width: 38px; height: 38px; border-radius: 19px; padding: 0; font-weight: 800; font-size: 0.95rem;"
+                                   OnClick="@(() => SelectNewScore(0))">
+                            M
+                        </MudButton>
+                    </div>
 
                 <MudStack Row="true" Spacing="1" Class="mt-3">
                     <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Check" OnClick="@(() => ExitReviewModeAsync(true))" Size="Size.Medium" Style="flex: 1; height: 44px; border-radius: 22px; font-weight: bold;">
@@ -173,7 +172,7 @@
                     Cancel
                 </MudButton>
             </MudCard>
-        </MudPaper>
+        </div>
     }
     else
     {

@@ -61,6 +61,14 @@ namespace GoldTracker.Mobile.Components.Pages.Sessions
             Navigation.NavigateTo("/session-live");
         }
 
+        private void NavigateToComprehensiveDetail()
+        {
+            if (_session != null)
+            {
+                Navigation.NavigateTo($"/session-comprehensive/{_session.Id}");
+            }
+        }
+
         private void NavigateToEnd(int endIndex)
         {
             if (_session != null)

@@ -212,19 +212,51 @@ var annotator = {
                 this.ctx.lineWidth = isSelected ? 3 : 2;
 
                 // Draw circle (ellipse)
+                // If it's an arrow (label != target), ALWAYS enforce circle rendering.
+                // squareEnforced is for interaction, but visual rendering should always be circular for arrows
                 this.ctx.beginPath();
-                this.ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, 2 * Math.PI);
+                if (box.label && box.label.toLowerCase() !== 'target') {
+                    const radius = Math.min(Math.abs(w), Math.abs(h)) / 2;
+                    // Use center + avg radius for best visual fit
+                    this.ctx.arc(x + w / 2, y + h / 2, radius, 0, 2 * Math.PI);
+                } else {
+                    this.ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, 2 * Math.PI);
+                }
                 this.ctx.stroke();
 
                 if (isSelected && !this.readOnly) {
                     this.drawHandles(x, y, w, h);
                 }
 
-                // Label
+                // Enhanced Label with Background Pill
                 if (box.label) {
-                    this.ctx.fillStyle = box.color || '#FF0000';
-                    this.ctx.font = '12px Arial';
-                    this.ctx.fillText(box.label, x, y - 5);
+                    const labelText = box.label === 'target' ? 'TARGET' : box.label;
+                    this.ctx.font = 'bold 14px sans-serif';
+                    const textWidth = this.ctx.measureText(labelText).width;
+                    const paddingH = 6;
+                    const paddingV = 4;
+                    const pillW = textWidth + (paddingH * 2);
+                    const pillH = 18;
+                    const pillX = x + (w / 2) - (pillW / 2);
+                    const pillY = y - pillH - 8;
+
+                    // Draw pill shadow
+                    this.ctx.shadowBlur = 4;
+                    this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
+
+                    // Draw white pill background
+                    this.ctx.fillStyle = '#FFFFFF';
+                    this.ctx.beginPath();
+                    this.ctx.roundRect(pillX, pillY, pillW, pillH, pillH / 2);
+                    this.ctx.fill();
+
+                    this.ctx.shadowBlur = 0; // Reset shadow
+
+                    // Draw label text
+                    this.ctx.fillStyle = (box.label === 'target') ? '#FF4081' : (box.color || '#333');
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText(labelText, pillX + (pillW / 2), pillY + (pillH / 2) + 1);
                 }
                 this.ctx.restore();
             },

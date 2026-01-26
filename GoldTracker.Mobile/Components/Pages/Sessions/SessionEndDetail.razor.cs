@@ -134,16 +134,7 @@ namespace GoldTracker.Mobile.Components.Pages.Sessions
                             TargetCenterY = _end.TargetCenterY,
                             TargetRadius = _end.TargetRadius,
                             TargetRadiusY = _end.TargetRadiusY,
-                            Detections = _end.Arrows.Select(a => a.Detection != null ? new ObjectDetectionResult
-                            {
-                                ClassId = (a.Points == 10 || a.Points == 100) ? 11 : a.Points,
-                                ClassName = a.Points == 100 ? "X" : a.Points.ToString(),
-                                Confidence = a.Detection.Confidence,
-                                X = a.Detection.CenterX,
-                                Y = a.Detection.CenterY,
-                                Width = a.Detection.Radius * 2,
-                                Height = a.Detection.Radius * 2
-                            } : null).Where(d => d != null).ToList()!,
+                            Detections = new List<ObjectDetectionResult>(),
                             ArrowScores = _end.Arrows.Select(a => a.Detection != null ? new ArrowScore
                             {
                                 Points = a.Points,
@@ -159,19 +150,38 @@ namespace GoldTracker.Mobile.Components.Pages.Sessions
                             } : null).Where(s => s != null).ToList()!
                         };
 
-                        // Add target face if metadata exists
-                        if (_end.TargetRadius > 0)
+                        // Use persisted detections if available (supports multi-target), otherwise reconstruct
+                        if (_end.AllDetections != null && _end.AllDetections.Any())
                         {
-                            analysisResult.Detections.Add(new ObjectDetectionResult
+                            analysisResult.Detections = _end.AllDetections.ToList();
+                        }
+                        else
+                        {
+                            // Legacy fallback: reconstruct from arrow scores + single target
+                            analysisResult.Detections = _end.Arrows.Select(a => a.Detection != null ? new ObjectDetectionResult
                             {
-                                ClassId = 10, // "target" (matches TargetCapture mapping)
-                                ClassName = "target",
-                                Confidence = 1.0f,
-                                X = _end.TargetCenterX,
-                                Y = _end.TargetCenterY,
-                                Width = _end.TargetRadius * 2,
-                                Height = (_end.TargetRadiusY > 0 ? _end.TargetRadiusY : _end.TargetRadius) * 2
-                            });
+                                ClassId = (a.Points == 10 || a.Points == 100) ? 11 : a.Points,
+                                ClassName = a.Points == 100 ? "X" : a.Points.ToString(),
+                                Confidence = a.Detection.Confidence,
+                                X = a.Detection.CenterX,
+                                Y = a.Detection.CenterY,
+                                Width = a.Detection.Radius * 2,
+                                Height = a.Detection.Radius * 2
+                            } : null).Where(d => d != null).ToList()!;
+                            
+                            if (_end.TargetRadius > 0)
+                            {
+                                analysisResult.Detections.Add(new ObjectDetectionResult
+                                {
+                                    ClassId = 10,
+                                    ClassName = "target",
+                                    Confidence = 1.0f,
+                                    X = _end.TargetCenterX,
+                                    Y = _end.TargetCenterY,
+                                    Width = _end.TargetRadius * 2,
+                                    Height = (_end.TargetRadiusY > 0 ? _end.TargetRadiusY : _end.TargetRadius) * 2
+                                });
+                            }
                         }
 
                         _annotatedImageBase64 = await ImageProcessingService.DrawDetectionsOnImageAsync(displayBytes, analysisResult, _imgWidth, _imgHeight);

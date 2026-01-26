@@ -39,9 +39,15 @@ public class AndroidImagePreprocessorService : Archery.Shared.Services.IImagePre
         try
         {
             // 3. Handle EXIF rotation
-            // NOTE: ApplyExifRotation may dispose decodedBitmap if it creates a rotated copy!
+            // NOTE: ApplyExifRotation disposes decodedBitmap if it creates a rotated copy!
             rotatedBitmap = GoldTracker.Mobile.Platforms.Android.AndroidImageProcessor.ApplyExifRotation(decodedBitmap, imageBytes, filePath);
             
+            // If it returned a DIFFERENT bitmap, the original was disposed. Null it out.
+            if (rotatedBitmap != decodedBitmap)
+            {
+                decodedBitmap = null; 
+            }
+
             // Capture these metadata values BEFORE any recycling occurs
             int rotatedWidth = rotatedBitmap.Width;
             int rotatedHeight = rotatedBitmap.Height;

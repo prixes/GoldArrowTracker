@@ -100,18 +100,48 @@ public class TargetScoringService : ITargetScoringService
                 float normY = dy / result.TargetRadiusY;
                 float normalizedDistance = (float)Math.Sqrt(normX * normX + normY * normY);
 
-                var points = this.CalculateScoreFromNormalizedDistance(normalizedDistance);
+                var geoPoints = this.CalculateScoreFromNormalizedDistance(normalizedDistance);
                 var ring = this.DetermineRingFromNormalizedDistance(normalizedDistance);
+
+                // SCORES PRIORITY: Trust the AI model's classification over geometry for 1-8.
+                // The geometry can be finicky with perspective/radius, while the AI is trained to recognize the ring.
+                // Exception: The model likely classifies Gold as '9'. We use geometry to upgrade 9 to 10.
+                
+                int finalPoints;
+                
+                // Parse class ID from detection (assuming ClassId maps directly to points for 0-9)
+                // Config map: 0->0, ..., 9->9, 10->target, 11->10
+                // Since model outputs 0-10, max point class is 9.
+                int modelPoints = detection.ClassId;
+                
+                // Sanity check: if class is "target" (10) or weird, ignore model
+                if (modelPoints >= 10) 
+                {
+                    finalPoints = geoPoints;
+                }
+                else
+                {
+                    finalPoints = modelPoints;
+                    
+                    // Allow geometry to upgrade a '9' to a '10' (Inner 10)
+                    if (modelPoints == 9 && geoPoints == 10)
+                    {
+                        finalPoints = 10;
+                    }
+                    
+                    // Fallback: If model says '0' (Miss) but geometry says hit? 
+                    // Usually trust model (it might be a miss on the paper). 
+                }
 
                 result.ArrowScores.Add(new ArrowScore
                 {
                     Detection = arrowDetection,
                     DistanceFromCenter = (float)Math.Sqrt(dx * dx + dy * dy), // Real pixel distance
-                    Points = points,
-                    Ring = ring
+                    Points = finalPoints,
+                    Ring = finalPoints // Use points as ring for simplicity, or keep geo ring? User cares about points.
                 });
 
-                result.TotalScore += points;
+                result.TotalScore += finalPoints;
             }
             return result;
         });

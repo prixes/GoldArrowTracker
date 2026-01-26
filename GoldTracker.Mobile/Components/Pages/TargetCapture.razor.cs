@@ -425,6 +425,18 @@ namespace GoldTracker.Mobile.Components.Pages
 
             try
             {
+                // Create list of all detections (mapped from analysis result)
+                var allDetections = _analysisResult.Detections.Select(d => new ObjectDetectionResult
+                {
+                    ClassId = d.ClassId,
+                    ClassName = d.ClassName,
+                    Confidence = d.Confidence,
+                    X = d.X,
+                    Y = d.Y,
+                    Width = d.Width,
+                    Height = d.Height
+                }).ToList();
+
                 if (IsEditingExistingEnd)
                 {
                     var updatedEnd = new SessionEnd
@@ -436,6 +448,7 @@ namespace GoldTracker.Mobile.Components.Pages
                          TargetRadiusY = _analysisResult.TargetRadiusY > 0 ? _analysisResult.TargetRadiusY : _analysisResult.TargetRadius,
                          TargetCenterX = _analysisResult.TargetCenterX,
                          TargetCenterY = _analysisResult.TargetCenterY,
+                         AllDetections = allDetections, // Persist all detections
                          Arrows = _analysisResult.ArrowScores.Select(a => new ArrowScore
                          {
                              Points = a.Points,
@@ -462,6 +475,7 @@ namespace GoldTracker.Mobile.Components.Pages
                         TargetRadiusY = _analysisResult.TargetRadiusY > 0 ? _analysisResult.TargetRadiusY : _analysisResult.TargetRadius,
                         TargetCenterX = _analysisResult.TargetCenterX,
                         TargetCenterY = _analysisResult.TargetCenterY,
+                        AllDetections = allDetections, // Persist all detections
                         Arrows = _analysisResult.ArrowScores.Select(a => new ArrowScore 
                         { 
                             Points = a.Points,
@@ -474,10 +488,6 @@ namespace GoldTracker.Mobile.Components.Pages
                     // If image path is null (e.g. fresh capture not saved to gallery), we should save it to app data
                     if (string.IsNullOrEmpty(end.ImagePath) && _originalImageBytes != null)
                     {
-                         // Using CameraService to save internally if implemented, or we can just save to session dir
-                         // For now, let's assume CameraService handles temporary files or we save it specifically.
-                         // Simplification: Reuse the temporary file if possible or save new.
-                         // Creating a specific directory for session images would be better.
                          var fileName = $"{Guid.NewGuid()}.jpg";
                          var sessionImagesDir = Path.Combine(FileSystem.AppDataDirectory, "session_images");
                          if (!Directory.Exists(sessionImagesDir)) Directory.CreateDirectory(sessionImagesDir);
@@ -493,9 +503,7 @@ namespace GoldTracker.Mobile.Components.Pages
                 }
                 else
                 {
-                    // Standalone save (future work: save to history without session?)
                      Snackbar.Add("Result saved! (Standalone)", Severity.Success);
-                     // Maybe navigate to sessions or home?
                      Navigation.NavigateTo("/sessions");
                 }
             }
@@ -719,7 +727,7 @@ namespace GoldTracker.Mobile.Components.Pages
         private async Task ApplyCorrectionsToResultAsync()
         {
             if (_analysisResult == null) return;
-
+            
             // Use stored original dimensions for coordinate conversion
             var imgWidth = _originalWidth;
             var imgHeight = _originalHeight;
@@ -728,17 +736,23 @@ namespace GoldTracker.Mobile.Components.Pages
             _analysisResult.ArrowScores.Clear();
             _analysisResult.Detections.Clear();
             _analysisResult.TotalScore = 0;
+            
+            System.Diagnostics.Debug.WriteLine($"[ApplyCorrections] Applying {_corrections.Count} corrections ({_corrections.Count(c => c.IsDeleted)} deleted)");
+
+            // Reset primary target metrics (will be set by the first '100' class correction)
+            _analysisResult.TargetRadius = 0;
 
             foreach (var correction in _corrections.Where(c => !c.IsDeleted))
             {
-                // 1. Update Detections (for visual display on results screen)
+                // 1. Update Detections (for persistent editing and display)
                 var widthNorm = correction.EndX - correction.StartX;
                 var heightNorm = correction.EndY - correction.StartY;
                 
+                int points = MapClassIdToPoints(correction.CorrectedClassId);
                 var detection = new ObjectDetectionResult
                 {
                     ClassId = correction.CorrectedClassId,
-                    ClassName = correction.CorrectedClassId == 10 ? "target" : MapClassIdToPoints(correction.CorrectedClassId).ToString(),
+                    ClassName = points == 100 ? "target" : points.ToString(),
                     Confidence = 1.0f,
                     X = (float)((correction.StartX + correction.EndX) / 2.0 * imgWidth),
                     Y = (float)((correction.StartY + correction.EndY) / 2.0 * imgHeight),
@@ -747,16 +761,20 @@ namespace GoldTracker.Mobile.Components.Pages
                 };
                 _analysisResult.Detections.Add(detection);
 
-                // 2. Update Scores & Target Center
-                int points = MapClassIdToPoints(correction.CorrectedClassId);
-                if (points == 100) // Target Face
+                // 2. Update Scores & Targets
+                if (points == 100)
                 {
-                    _analysisResult.TargetCenterX = detection.X;
-                    _analysisResult.TargetCenterY = detection.Y;
-                    _analysisResult.TargetRadius = detection.Width / 2.0f;
-                    _analysisResult.TargetRadiusY = detection.Height / 2.0f;
+                    // Primary target selection (first one found sets the scoring reference)
+                    if (_analysisResult.TargetRadius <= 0)
+                    {
+                        _analysisResult.TargetCenterX = detection.X;
+                        _analysisResult.TargetCenterY = detection.Y;
+                        _analysisResult.TargetRadius = detection.Width / 2.0f;
+                        _analysisResult.TargetRadiusY = detection.Height / 2.0f;
+                    }
+                    // Even if it's not primary, it's already in _analysisResult.Detections
                 }
-                else if (points > 0 && points <= 10)
+                else if (points >= 0 && points <= 10)
                 {
                     var arrowScore = new ArrowScore
                     {
@@ -768,7 +786,7 @@ namespace GoldTracker.Mobile.Components.Pages
                             CenterX = detection.X,
                             CenterY = detection.Y,
                             Radius = detection.Width / 2.0f,
-                            Confidence = detection.Confidence
+                            Confidence = 1.0f
                         }
                     };
                     _analysisResult.ArrowScores.Add(arrowScore);
@@ -776,7 +794,7 @@ namespace GoldTracker.Mobile.Components.Pages
                 }
             }
 
-            // Redraw the annotated image with corrections
+            // Redraw the annotated image with ALL corrections
             if (_originalImageBytes != null && _analysisResult != null)
             {
                 _annotatedImageBase64 = await ImageProcessingService.DrawDetectionsOnImageAsync(_originalImageBytes, _analysisResult, _originalWidth, _originalHeight);
@@ -789,9 +807,13 @@ namespace GoldTracker.Mobile.Components.Pages
         /// </summary>
         private int MapClassIdToPoints(int classId)
         {
+            // Based on object_detection_config.json:
+            // 0-9 => Points 0-9
+            // 10 => "target" (Face) -> Mapped to 100 internally
+            // 11 => "10" (Inner 10) -> Mapped to 10
             return classId switch
             {
-                0 => 0,  // Miss
+                0 => 0,
                 1 => 1,
                 2 => 2,
                 3 => 3,
@@ -801,8 +823,8 @@ namespace GoldTracker.Mobile.Components.Pages
                 7 => 7,
                 8 => 8,
                 9 => 9,
-                11 => 10, // 10 points (class 11 in current model)
-                10 => 100, // Target face (internal 100)
+                10 => 100, // Config says 10 is "target"
+                11 => 10,  // Config says 11 is "10"
                 _ => 0
             };
         }

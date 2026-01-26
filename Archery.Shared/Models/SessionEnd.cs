@@ -29,6 +29,11 @@ namespace Archery.Shared.Models
         /// List of arrows shot in this end.
         /// </summary>
         public List<ArrowScore> Arrows { get; set; } = new List<ArrowScore>();
+
+        /// <summary>
+        /// List of all detections (including extra target faces) for persistent editing.
+        /// </summary>
+        public List<ObjectDetectionResult> AllDetections { get; set; } = new List<ObjectDetectionResult>();
         
         /// <summary>
         /// Total score for this end.
