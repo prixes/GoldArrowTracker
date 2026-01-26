@@ -11,6 +11,7 @@ namespace GoldTracker.Mobile.Services.Sessions
         Task InitializeAsync();
         void StartNewSession(string? topic = null, string? note = null);
         Task AddEndAsync(SessionEnd end);
+        Task SaveCurrentSessionAsync();
         Task FinishSessionAsync();
         void CancelSession();
         Task ResumeSessionAsync(Session session);

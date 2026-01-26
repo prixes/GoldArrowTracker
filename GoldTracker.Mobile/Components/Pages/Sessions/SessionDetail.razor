@@ -15,9 +15,12 @@
     else
     {
         <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
-            <MudStack Spacing="0">
-                <MudText Typo="Typo.h5" Class="font-weight-bold">Session Detail</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Default">@_session.StartTime.ToString("MMM dd, yyyy - HH:mm")</MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Color="Color.Default" OnClick="@(() => Navigation.NavigateTo("/sessions"))" />
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.h5" Class="font-weight-bold">Session Detail</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Default">@_session.StartTime.ToString("MMM dd, yyyy - HH:mm")</MudText>
+                </MudStack>
             </MudStack>
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="DeleteSessionAsync" />
         </MudStack>

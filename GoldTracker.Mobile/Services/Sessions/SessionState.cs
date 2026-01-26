@@ -51,6 +51,14 @@ namespace GoldTracker.Mobile.Services.Sessions
             NotifyStateChanged();
         }
 
+        public async Task SaveCurrentSessionAsync()
+        {
+            if (CurrentSession != null)
+            {
+                await _sessionService.SaveSessionAsync(CurrentSession);
+            }
+        }
+
         public async Task FinishSessionAsync()
         {
             if (CurrentSession != null)

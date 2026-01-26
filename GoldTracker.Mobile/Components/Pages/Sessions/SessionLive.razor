@@ -10,12 +10,17 @@
     }
     else
     {
-        <MudStack Spacing="2" Class="mb-4">
-            <MudText Typo="Typo.h5" Class="font-weight-bold">Current Session</MudText>
-            @if (!string.IsNullOrEmpty(SessionState.CurrentSession.Topic))
-            {
-                <MudText Typo="Typo.subtitle1" Color="Color.Secondary">@SessionState.CurrentSession.Topic</MudText>
-            }
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Color="Color.Default" OnClick="GoBackToSessions" />
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.h5" Class="font-weight-bold">Current Session</MudText>
+                    @if (!string.IsNullOrEmpty(SessionState.CurrentSession.Topic))
+                    {
+                        <MudText Typo="Typo.subtitle1" Color="Color.Secondary">@SessionState.CurrentSession.Topic</MudText>
+                    }
+                </MudStack>
+            </MudStack>
         </MudStack>
 
         <!-- Summary Statistics -->
@@ -39,8 +44,8 @@
             </MudPaper>
         </div>
 
-        <!-- Ends List -->
-        <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Ends (@SessionState.CurrentSession.Ends.Count)</MudText>
+        <!-- Score Sheet (Replaces Ends List) -->
+        <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Score Sheet (@SessionState.CurrentSession.Ends.Count ends)</MudText>
         
         @if (!SessionState.CurrentSession.Ends.Any())
         {
@@ -51,46 +56,71 @@
         }
         else
         {
-            <MudStack Spacing="2">
-                @foreach (var end in SessionState.CurrentSession.Ends.OrderByDescending(e => e.Index))
-                {
-                    <div class="cursor-pointer" @onclick="() => NavigateToEnd(end.Index)">
-                        <MudPaper Elevation="0" Class="pa-3 rounded-lg" Style="border: 1px solid var(--mud-palette-lines-default);">
-                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
-                                <MudStack Spacing="0">
-                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">End @end.Index</MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Default">@end.Timestamp.ToString("t") • @end.ArrowCount arrows</MudText>
-                                </MudStack>
-                                 
-                                <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
-                                     @foreach (var arrow in end.Arrows.OrderByDescending(a => a.Points).Take(6))
-                                     {
-                                         <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="GetArrowColor(arrow.Points)" Class="mx-0" Style="min-width: 24px; text-align: center; font-weight: bold; padding-left: 6px; padding-right: 6px;">
-                                             @(arrow.Points == 100 ? "X" : arrow.Points.ToString())
-                                         </MudChip>
-                                     }
-                                </MudStack>
-                                
-                                <MudAvatar Color="Color.Surface" Variant="Variant.Filled" Size="Size.Small" Style="font-weight: bold; color: var(--mud-palette-text-primary); border: 1px solid var(--mud-palette-lines-default);">
-                                    @end.Score
-                                </MudAvatar>
-                            </MudStack>
-                        </MudPaper>
-                    </div>
+            <MudPaper Elevation="0" Style="border-radius: 12px; border: 1px solid #eee; overflow: hidden; background: white;" Class="mb-4">
+                <MudTable T="ScoreRow" Items="@_scoreSheet" Hover="true" Breakpoint="Breakpoint.None" Dense="true" Elevation="0" Class="score-sheet-table" Style="width: 100%;" OnRowClick="OnEndRowClick" RowClass="cursor-pointer">
+                    <HeaderContent>
+                        <MudTh Style="width: 10%; padding: 8px;">#</MudTh>
+                        <MudTh Style="width: 20%; padding: 8px;">Time</MudTh>
+                        <MudTh Style="width: 40%; padding: 8px;">Arrows</MudTh>
+                        <MudTh Style="width: 15%; padding: 8px; text-align: right;">E.T.</MudTh>
+                        <MudTh Style="width: 15%; padding: 8px; text-align: right;">R.T.</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd Style="padding: 8px;">@context.EndNumber</MudTd>
+                        <MudTd Style="padding: 8px;">
+                            <MudText Typo="Typo.caption" Color="Color.Default">@context.Timestamp.ToString("HH:mm")</MudText>
+                        </MudTd>
+                        <MudTd Style="padding: 8px;">
+                                <div class="d-flex flex-wrap gap-1">
+                                    @if (context.Arrows.Count > 3)
+                                    {
+                                        @foreach (var arrow in context.Arrows.Take(3))
+                                        {
+                                            <div class="score-chip" style="background: @(GetArrowHexColor(arrow.Points)); color: @(arrow.Points >= 9 ? "black" : "white")">
+                                            @(arrow.Points == 100 ? "X" : arrow.Points.ToString())
+                                            </div>
+                                        }
+                                        <div class="score-chip" style="background: #E0E0E0; color: #757575; font-size: 0.7rem;">
+                                            +@(context.Arrows.Count - 3)
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var arrow in context.Arrows)
+                                        {
+                                            <div class="score-chip" style="background: @(GetArrowHexColor(arrow.Points)); color: @(arrow.Points >= 9 ? "black" : "white")">
+                                            @(arrow.Points == 100 ? "X" : arrow.Points.ToString())
+                                            </div>
+                                        }
+                                    }
+                                </div>
+                        </MudTd>
+                        <MudTd Style="padding: 8px; text-align: right; font-weight: bold;">@context.EndScore</MudTd>
+                        <MudTd Style="padding: 8px; text-align: right; font-weight: bold; color: #3b82f6;">@context.RunningTotal</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+
+            <style>
+                .score-chip {
+                    width: 22px; height: 22px; border-radius: 4px; 
+                    display: flex; align-items: center; justify-content: center; 
+                    font-weight: 800; font-size: 0.75rem;
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
                 }
-            </MudStack>
+                .score-sheet-table .mud-table-head { background: #fcfcfc; border-bottom: 2px solid #eee; }
+                .score-sheet-table .mud-table-cell { font-size: 0.85rem; }
+            </style>
         }
 
         <!-- Bottom Actions -->
-        <MudAppBar Bottom="true" Fixed="true" Color="Color.Surface" Elevation="4" Class="px-4 py-2" Style="height: auto;">
-             <MudStack Row="true" Spacing="2" Style="width: 100%;">
-                 <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Filled.Check" OnClick="FinishSession" FullWidth="true" Class="py-2">
-                     Finish
-                 </MudButton>
-                 <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddEnd" FullWidth="true" Class="py-2" Style="flex-grow: 1.5;">
-                     Add End
-                 </MudButton>
-             </MudStack>
-        </MudAppBar>
+        <MudStack Row="true" Spacing="2" Class="mt-4 mb-2">
+            <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Filled.Check" OnClick="FinishSession" FullWidth="true" Class="py-3">
+                Finish
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddEnd" FullWidth="true" Class="py-3" Style="flex-grow: 1.5;">
+                Add End
+            </MudButton>
+        </MudStack>
     }
 </MudContainer>
