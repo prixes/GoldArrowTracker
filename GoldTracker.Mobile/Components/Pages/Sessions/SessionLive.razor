@@ -19,22 +19,25 @@
         </MudStack>
 
         <!-- Summary Statistics -->
-        <MudPaper Class="pa-4 mb-4" Elevation="0" Style="background: linear-gradient(135deg, #182848 0%, #4b6cb7 100%); border-radius: 12px; color: white;">
-            <MudGrid>
-                <MudItem xs="4" Class="d-flex flex-column align-center">
-                    <MudText Typo="Typo.caption" Style="opacity: 0.8;">SCORE</MudText>
-                    <MudText Typo="Typo.h4" Class="font-weight-bold">@SessionState.CurrentSession.TotalScore</MudText>
-                </MudItem>
-                <MudItem xs="4" Class="d-flex flex-column align-center">
-                    <MudText Typo="Typo.caption" Style="opacity: 0.8;">ARROWS</MudText>
-                    <MudText Typo="Typo.h4" Class="font-weight-bold">@SessionState.CurrentSession.TotalArrows</MudText>
-                </MudItem>
-                <MudItem xs="4" Class="d-flex flex-column align-center">
-                    <MudText Typo="Typo.caption" Style="opacity: 0.8;">AVG</MudText>
-                    <MudText Typo="Typo.h4" Class="font-weight-bold">@SessionState.CurrentSession.ArrowAverage.ToString("F1")</MudText>
-                </MudItem>
-            </MudGrid>
-        </MudPaper>
+        <!-- Summary Statistics -->
+        <div class="cursor-pointer" @onclick="NavigateToComprehensiveDetail">
+            <MudPaper Class="pa-4 mb-4" Elevation="0" Style="background: linear-gradient(135deg, #182848 0%, #4b6cb7 100%); border-radius: 12px; color: white;">
+                <MudGrid>
+                    <MudItem xs="4" Class="d-flex flex-column align-center">
+                        <MudText Typo="Typo.caption" Style="opacity: 0.8;">SCORE</MudText>
+                        <MudText Typo="Typo.h4" Class="font-weight-bold">@SessionState.CurrentSession.TotalScore</MudText>
+                    </MudItem>
+                    <MudItem xs="4" Class="d-flex flex-column align-center">
+                        <MudText Typo="Typo.caption" Style="opacity: 0.8;">ARROWS</MudText>
+                        <MudText Typo="Typo.h4" Class="font-weight-bold">@SessionState.CurrentSession.TotalArrows</MudText>
+                    </MudItem>
+                    <MudItem xs="4" Class="d-flex flex-column align-center">
+                        <MudText Typo="Typo.caption" Style="opacity: 0.8;">AVG</MudText>
+                        <MudText Typo="Typo.h4" Class="font-weight-bold">@SessionState.CurrentSession.ArrowAverage.ToString("F1")</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        </div>
 
         <!-- Ends List -->
         <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Ends (@SessionState.CurrentSession.Ends.Count)</MudText>

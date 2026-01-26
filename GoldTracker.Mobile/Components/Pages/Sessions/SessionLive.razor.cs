@@ -41,6 +41,14 @@ namespace GoldTracker.Mobile.Components.Pages.Sessions
             }
         }
 
+        private void NavigateToComprehensiveDetail()
+        {
+            if (SessionState.CurrentSession != null)
+            {
+                Navigation.NavigateTo($"/session-comprehensive/{SessionState.CurrentSession.Id}");
+            }
+        }
+
         private MudBlazor.Color GetArrowColor(int points)
         {
             return points switch

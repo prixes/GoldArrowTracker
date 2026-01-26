@@ -17,6 +17,9 @@ namespace GoldTracker.Mobile.Components.Pages.Sessions
 
         private Session? _session;
         private bool _isLoading = true;
+        private List<ScoreRow> _scoreSheet = new();
+
+        private record ScoreRow(int EndNumber, DateTime Timestamp, List<ArrowScore> Arrows, int EndScore, int RunningTotal);
 
         protected override async Task OnInitializedAsync()
         {
@@ -29,11 +32,30 @@ namespace GoldTracker.Mobile.Components.Pages.Sessions
             try
             {
                 _session = await SessionService.GetSessionAsync(Id);
+                if (_session != null)
+                {
+                    GenerateScoreSheet();
+                }
             }
             finally
             {
                 _isLoading = false;
                 StateHasChanged();
+            }
+        }
+
+        private void GenerateScoreSheet()
+        {
+            _scoreSheet.Clear();
+            if (_session == null) return;
+
+            int runningTotal = 0;
+            var sortedEnds = _session.Ends.OrderBy(e => e.Index).ToList();
+
+            foreach (var end in sortedEnds)
+            {
+                runningTotal += end.Score;
+                _scoreSheet.Add(new ScoreRow(end.Index, end.Timestamp, end.Arrows.OrderByDescending(a => a.Points).ToList(), end.Score, runningTotal));
             }
         }
 
@@ -77,6 +99,11 @@ namespace GoldTracker.Mobile.Components.Pages.Sessions
             }
         }
 
+        private void OnEndRowClick(TableRowClickEventArgs<ScoreRow> args)
+        {
+            NavigateToEnd(args.Item.EndNumber);
+        }
+
         private MudBlazor.Color GetArrowColor(int points)
         {
             return points switch
@@ -88,5 +115,13 @@ namespace GoldTracker.Mobile.Components.Pages.Sessions
                 _ => MudBlazor.Color.Default
             };
         }
+
+        private string GetArrowHexColor(int points) => points switch {
+            100 or 10 or 9 => "#FFEB3B", // Gold/Yellow
+            8 or 7 => "#F44336",         // Red
+            6 or 5 => "#03A9F4",         // Blue
+            4 or 3 => "#212121",         // Black
+            _ => "#EEE"                  // White/Miss
+        };
     }
 }

@@ -35,7 +35,6 @@ namespace GoldTracker.Mobile.Components.Pages.Sessions
 
         // Analysis Data
         private Dictionary<int, int> _scoreDistribution = new();
-        private List<ScoreRow> _scoreSheet = new();
         private List<ZoneHit> _zoneHits = new();
         
         // Chart Data
@@ -47,7 +46,6 @@ namespace GoldTracker.Mobile.Components.Pages.Sessions
             public bool IsInGroup { get; set; } = true;
             public double DistanceFromCentroid { get; set; }
         }
-        private record ScoreRow(int EndNumber, List<ArrowScore> Arrows, int EndScore, int RunningTotal);
         private record ZoneHit(string Label, int Count, double Percentage, string Color);
 
         public int ConfidencePercentage
@@ -98,12 +96,10 @@ namespace GoldTracker.Mobile.Components.Pages.Sessions
         {
             _allArrowPoints.Clear();
             _scoreDistribution.Clear();
-            _scoreSheet.Clear();
             _zoneHits.Clear();
 
             if (_session == null) return;
 
-            int runningTotal = 0;
             var sortedEnds = _session.Ends.OrderBy(e => e.Index).ToList();
             
             var validScores = new[] { 100, 10, 9, 8, 7, 6, 0 };
@@ -114,9 +110,6 @@ namespace GoldTracker.Mobile.Components.Pages.Sessions
 
             foreach (var end in sortedEnds)
             {
-                runningTotal += end.Score;
-                _scoreSheet.Add(new ScoreRow(end.Index, end.Arrows.OrderByDescending(a => a.Points).ToList(), end.Score, runningTotal));
-
                 endScores.Add(end.Score);
                 endLabels.Add(end.Index.ToString());
 
