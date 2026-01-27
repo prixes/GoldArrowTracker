@@ -1,0 +1,277 @@
+@page "/session-comprehensive/{SessionId:guid}"
+@namespace GoldTracker.Shared.UI.Components.Pages.Sessions
+@using Archery.Shared.Models
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-0" Style="height: 100vh; display: flex; flex-direction: column; background: #fafafa;">
+    <!-- Header -->
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="pt-4 px-4 pb-2">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="GoBack" />
+        <MudText Typo="Typo.h6" Class="font-weight-bold">Analysis Dashboard</MudText>
+        <div style="width: 48px;"></div>
+    </MudStack>
+
+    @if (_isLoading)
+    {
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="align-self-center my-auto" />
+    }
+    else if (_session == null)
+    {
+        <MudAlert Severity="Severity.Error" Class="ma-4 text-center">Session not found.</MudAlert>
+    }
+    else
+    {
+        <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4" Centered="true" Color="Color.Transparent" SliderColor="Color.Primary" ActiveTabClass="font-weight-bold text-primary" FullWidth="true" MinimumTabWidth="0px">
+            
+            <!-- OVERVIEW TAB -->
+            <MudTabPanel Text="Overview">
+                <MudStack Spacing="3">
+                    
+                    <!-- KPI Cards -->
+                    <div class="d-flex justify-space-between gap-3">
+                         <div class="kpi-card flex-1">
+                            <span class="kpi-label">SCORE</span>
+                            <span class="kpi-value text-primary">@_session.TotalScore</span>
+                        </div>
+                        <div class="kpi-card flex-1">
+                            <span class="kpi-label">AVERAGE</span>
+                            <span class="kpi-value" style="color: #10B981;">@_session.ArrowAverage.ToString("F1")</span>
+                        </div>
+                         <div class="kpi-card flex-1">
+                            <span class="kpi-label">ARROWS</span>
+                            <span class="kpi-value" style="color: #F59E0B;">@_session.TotalArrows</span>
+                        </div>
+                    </div>
+
+                    <!-- Target Face Visualization (Detailed 10-Ring) -->
+                    <MudPaper Class="pa-4 mt-2" Elevation="0" Style="border-radius: 24px; background: white; border: 1px solid #eee; position: relative;">
+                         <div style="width: 100%; aspect-ratio: 1; position: relative;">
+                            <svg viewBox="0 0 100 100" style="width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.05));">
+                                <!-- Target Rings (Standard WA 10-Ring) -->
+                                <circle cx="50" cy="50" r="50" fill="white" stroke="#ccc" stroke-width="0.3" /> <!-- 1 -->
+                                <circle cx="50" cy="50" r="45" fill="white" stroke="#ccc" stroke-width="0.3" /> <!-- 2 -->
+                                <circle cx="50" cy="50" r="40" fill="#212121" stroke="rgba(255,255,255,0.1)" stroke-width="0.3" /> <!-- 3 -->
+                                <circle cx="50" cy="50" r="35" fill="#212121" stroke="rgba(255,255,255,0.1)" stroke-width="0.3" /> <!-- 4 -->
+                                <circle cx="50" cy="50" r="30" fill="#03A9F4" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" /> <!-- 5 -->
+                                <circle cx="50" cy="50" r="25" fill="#03A9F4" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" /> <!-- 6 -->
+                                <circle cx="50" cy="50" r="20" fill="#F44336" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" /> <!-- 7 -->
+                                <circle cx="50" cy="50" r="15" fill="#F44336" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" /> <!-- 8 -->
+                                <circle cx="50" cy="50" r="10" fill="#FFEB3B" stroke="rgba(0,0,0,0.1)" stroke-width="0.3" /> <!-- 9 -->
+                                <circle cx="50" cy="50" r="5" fill="#FFEB3B" stroke="rgba(0,0,0,0.1)" stroke-width="0.3" /> <!-- 10 -->
+                                <circle cx="50" cy="50" r="2.5" fill="none" stroke="rgba(0,0,0,0.15)" stroke-width="0.1" /> <!-- X -->
+                                
+                                <!-- Grouping Highlight (Circle) -->
+                                @if (_showEllipse)
+                                {
+                                    <circle cx="@_centroidX" cy="@_centroidY" r="@_groupRadius" 
+                                             fill="#3b82f6" fill-opacity="0.12" stroke="#3b82f6" stroke-width="0.3" stroke-dasharray="1.2,0.8" />
+                                    
+                                    <!-- Centroid Center Dot -->
+                                    <circle cx="@_centroidX" cy="@_centroidY" r="0.7" fill="#F44336" stroke="white" stroke-width="0.2" />
+                                    
+                                    <!-- Group-Specific Average Label -->
+                                    @((MarkupString)$"<text x='{_centroidX}' y='{_centroidY - 2.8}' text-anchor='middle' font-size='5' font-weight='900' fill='black' style='filter: drop-shadow(0 1px 1px white);'>{_groupAverage.ToString("F2")}</text>")
+                                }
+
+                                <!-- Arrow Detections (with Dimming for Out-of-Group) -->
+                                @foreach (var p in _allArrowPoints)
+                                {
+                                    <circle cx="@(50 + p.X * 50)" cy="@(50 + p.Y * 50)" r="1.3" 
+                                            fill="black" stroke="white" stroke-width="0.4" 
+                                            opacity="@(p.IsInGroup ? 1.0 : 0.2)" 
+                                            style="transition: opacity 0.3s ease;" />
+                                }
+
+                                <!-- Small Crosshair -->
+                                <line x1="49" y1="50" x2="51" y2="50" stroke="rgba(0,0,0,0.3)" stroke-width="0.1" />
+                                <line x1="50" y1="49" x2="50" y2="51" stroke="rgba(0,0,0,0.3)" stroke-width="0.1" />
+                            </svg>
+
+                            <!-- Labels overlay -->
+                            <div style="position: absolute; bottom: 0; right: 0; background: rgba(255,255,255,0.8); padding: 4px 8px; border-radius: 8px; backdrop-filter: blur(4px);">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                    <div style="width: 8px; height: 8px; background: #3b82f6; opacity: 0.5; border-radius: 50%;"></div>
+                                    <MudText Typo="Typo.caption" Style="font-size: 0.6rem; font-weight: bold;">Grouping (@(_confidencePercentage)%)</MudText>
+                                </MudStack>
+                            </div>
+                        </div>
+                    </MudPaper>
+
+                    <!-- Real-time Adjustment Card (Clean per reference) -->
+                    <MudPaper Class="pa-4" Elevation="0" Style="border-radius: 20px; border: 1px solid #eee; background: white;">
+                        <MudStack Spacing="1">
+                            <MudText Typo="Typo.subtitle2" Style="color: #444; font-weight: 500;">The area where @(_confidencePercentage)% of your arrows land</MudText>
+                            <div class="d-flex align-center gap-4 mt-2">
+                                <span class="font-weight-bold" style="min-width: 40px; color: #3b82f6; font-size: 1.1rem;">@(_confidencePercentage)%</span>
+                                <MudSlider @bind-Value="ConfidencePercentage" Min="1" Max="99" Step="1" Color="Color.Primary" ValueLabel="false" Class="flex-grow-1" />
+                            </div>
+                        </MudStack>
+                    </MudPaper>
+
+                    <MudText Typo="Typo.subtitle2" Class="text-center" Style="opacity: 0.5;">Showing @_allArrowPoints.Count arrows from @_session.Ends.Count ends</MudText>
+                </MudStack>
+            </MudTabPanel>
+
+
+
+            <!-- ANALYSIS TAB -->
+            <MudTabPanel Text="Analysis">
+                <MudStack Spacing="4">
+                    
+                    <!-- Top Summary Bricks per reference -->
+                    <MudPaper Class="pa-4" Elevation="0" Style="border-radius: 20px; border: 1px solid #eee; background: white;">
+                        @{ var totalArrs = _session.TotalArrows > 0 ? _session.TotalArrows : 1; }
+                        <div class="d-flex justify-space-between gap-2 overflow-x-auto pb-2">
+                            @foreach (var scoreKey in new[] { 100, 10, 9, 8, 7, 0 })
+                            {
+                                var count = _scoreDistribution[scoreKey];
+                                var pct = (double)count / totalArrs * 100;
+                                var (label, color) = scoreKey switch {
+                                    100 or 10 => ("10", "#FFEB3B"),
+                                    9 => ("9", "#FFEB3B"),
+                                    8 => ("8", "#F44336"),
+                                    7 => ("7", "#F44336"),
+                                    _ => ("M", "#E0E0E0")
+                                };
+                                
+                                <div class="brick-item">
+                                    <div class="brick-count">@count</div>
+                                    <div class="brick-bar" style="background: @color;"></div>
+                                    <div class="brick-label">
+                                        @label
+                                        @if(scoreKey == 100) { <span class="brick-sub">(X)</span> }
+                                    </div>
+                                    <div class="brick-pct">(@pct.ToString("F0")%)</div>
+                                </div>
+                            }
+                        </div>
+                    </MudPaper>
+
+                    <!-- Ends Evolution (Custom Zoomed SVG per reference) -->
+                    <MudPaper Class="pa-4" Elevation="0" Style="border-radius: 24px; border: 1px solid #eee; background: white;">
+                        <MudText Typo="Typo.subtitle1" Class="mb-4 font-weight-bold" Style="color: #0d47a1; font-size: 1rem;">Ends evolution</MudText>
+                        
+                        <div style="position: relative; height: 260px; padding: 15px 10px 45px 35px; background: #fdfdfd; border-radius: 12px; border: 1px solid #f5f5f5;">
+                            <!-- Y-Axis Labels -->
+                            @foreach (var val in _evolGridY)
+                            {
+                                var yPct = 100 - ((val - _evolMin) / (_evolMax - _evolMin) * 100);
+                                if (yPct >= 0 && yPct <= 100)
+                                {
+                                    <span style="position: absolute; left: 8px; top: @(yPct)%; transform: translateY(-50%); font-size: 0.7rem; color: #999; font-weight: 800;">@val</span>
+                                    <div style="position: absolute; left: 30px; right: 10px; top: @(yPct)%; height: 0.5px; background: #f0f0f0;"></div>
+                                }
+                            }
+
+                            <!-- SVG Content -->
+                            <div style="width: 100%; height: 100%; position: relative;">
+                                <svg viewBox="0 0 100 40" preserveAspectRatio="none" style="width: 100%; height: 100%; overflow: visible; display: block;">
+                                    <!-- Vertical Grid Lines -->
+                                    @foreach (var grid in _evolGridX)
+                                    {
+                                        <line x1="@grid.x" y1="0" x2="@grid.x" y2="40" stroke="#f0f0f0" stroke-width="0.15" />
+                                    }
+
+                                    <!-- Trend Line -->
+                                    @if(!string.IsNullOrEmpty(_evolPath))
+                                    {
+                                        <polyline points="@_evolPath" fill="none" stroke="#0d47a1" stroke-width="0.9" stroke-linejoin="round" stroke-linecap="round" style="filter: drop-shadow(0 1px 2px rgba(13, 71, 161, 0.15));" />
+                                    }
+                                    
+                                    <!-- Data Points -->
+                                    @if(!string.IsNullOrEmpty(_evolPath))
+                                    {
+                                        var pts = _evolPath.Split(' ');
+                                        foreach (var p in pts) {
+                                            var xy = p.Split(',');
+                                            if (xy.Length == 2) {
+                                                <circle cx="@xy[0]" cy="@xy[1]" r="0.7" fill="#0d47a1" stroke="white" stroke-width="0.3" />
+                                            }
+                                        }
+                                    }
+                                </svg>
+                            </div>
+
+                            <!-- X-Axis Labels -->
+                            <div style="position: absolute; left: 35px; right: 10px; bottom: 12px; height: 1.5rem;">
+                                @foreach (var grid in _evolGridX)
+                                {
+                                    <span style="position: absolute; left: @(grid.x)%; transform: translateX(-50%); font-size: 0.7rem; color: #bbb; font-weight: 800;">@grid.label</span>
+                                }
+                            </div>
+                        </div>
+                    </MudPaper>
+
+                    <!-- Zone Hit Percentage (Horizontal Bars strictly per reference) -->
+                    <MudPaper Class="pa-4" Elevation="0" Style="border-radius: 24px; border: 1px solid #eee; background: white;">
+                        <MudText Typo="Typo.subtitle1" Class="mb-4 font-weight-bold" Style="color: #0d47a1; font-size: 1rem;">Zone hit percentage</MudText>
+                        <MudStack Spacing="3" Class="px-2">
+                            @foreach(var zone in _zoneHits)
+                            {
+                                <div class="d-flex align-center gap-3">
+                                    <div style="min-width: 70px;">
+                                        <MudText Typo="Typo.caption" Class="font-weight-bold" Style="color: #666; font-size: 0.75rem;">@zone.Label (@zone.Percentage.ToString("F0")%)</MudText>
+                                    </div>
+                                    <div class="flex-grow-1" style="height: 20px; background: #f0f0f0; border-radius: 4px; overflow: hidden;">
+                                        <div style="width: @zone.Percentage%; height: 100%; background: @zone.Color; transition: width 0.8s ease;"></div>
+                                    </div>
+                                    <div style="min-width: 25px; text-align: right;">
+                                        <MudText Typo="Typo.caption" Class="font-weight-bold" Style="font-size: 0.8rem;">@zone.Count</MudText>
+                                    </div>
+                                </div>
+                            }
+                        </MudStack>
+                    </MudPaper>
+
+                </MudStack>
+            </MudTabPanel>
+        </MudTabs>
+    }
+</MudContainer>
+
+@code {
+    private string GetArrowHexColor(int points) => points switch {
+        100 or 10 or 9 => "#FFEB3B", // Gold/Yellow
+        8 or 7 => "#F44336",         // Red
+        6 or 5 => "#03A9F4",         // Blue
+        4 or 3 => "#212121",         // Black
+        _ => "#EEE"                  // White/Miss
+    };
+}
+
+<style>
+    .kpi-card {
+        background: white;
+        padding: 16px 12px;
+        border-radius: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        border: 1px solid #eee;
+    }
+    .kpi-label { font-size: 0.6rem; font-weight: 800; color: #bbb; letter-spacing: 1.5px; text-transform: uppercase; }
+    .kpi-value { font-size: 1.5rem; font-weight: 900; margin-top: 4px; }
+
+    .score-chip {
+        width: 26px; height: 26px; border-radius: 6px; 
+        display: flex; align-items: center; justify-content: center; 
+        font-weight: 900; font-size: 0.8rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* Bricks Style */
+    .brick-item {
+        display: flex; flex-direction: column; align-items: center; min-width: 50px; flex: 1;
+    }
+    .brick-count { font-size: 1rem; font-weight: 900; color: #333; margin-bottom: 2px; }
+    .brick-bar { width: 100%; height: 24px; border-radius: 4px; margin-bottom: 4px; border: 1px solid rgba(0,0,0,0.05); }
+    .brick-label { font-size: 0.75rem; font-weight: 700; color: #666; }
+    .brick-sub { font-size: 0.55rem; color: #999; vertical-align: super; }
+    .brick-pct { font-size: 0.65rem; color: #aaa; font-weight: 500; }
+
+    .score-sheet-table .mud-table-head { background: #fcfcfc; border-bottom: 2px solid #eee; }
+    .score-sheet-table .mud-table-cell { padding: 14px 16px; font-size: 0.95rem; }
+
+    .mud-tabs-panels { background: transparent !important; flex: 1; overflow-y: auto; padding-bottom: 40px; }
+    .mud-tab { text-transform: uppercase; font-size: 0.85rem; letter-spacing: 1.5px; font-weight: 800; opacity: 0.6; }
+    .mud-tab.mud-tab-active { opacity: 1; color: var(--mud-palette-primary) !important; }
+</style>

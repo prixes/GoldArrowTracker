@@ -1,0 +1,25 @@
+@inherits LayoutComponentBase
+@using MudBlazor
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+
+<div class="page">
+    <main>
+        <article class="content">
+            @Body
+        </article>
+    </main>
+
+</div>
+<div class="bottom-nav bottom-nav-background-wrapper">
+    <NavMenu />
+</div>
+
+<script>
+    function goBack() {
+        window.history.back();
+    }
+</script>

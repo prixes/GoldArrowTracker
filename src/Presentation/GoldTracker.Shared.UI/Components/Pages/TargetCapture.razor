@@ -1,0 +1,289 @@
+@page "/target-capture"
+@using GoldTracker.Shared.UI.Services.Abstractions
+@using Archery.Shared.Models
+
+<MudContainer MaxWidth="MaxWidth.Small">
+    @if (IsEditingExistingEnd && !_analysisComplete)
+    {
+        <MudPaper Elevation="0" Class="px-4 py-6">
+            <MudText Typo="Typo.h6" GutterBottom="true" Class="font-weight-bold">
+                Loading End @endIndex
+            </MudText>
+            <MudProgressLinear Indeterminate="true" Class="mt-2" />
+        </MudPaper>
+    }
+    else if (!_analysisComplete)
+    {
+        @if (IsEditingExistingEnd)
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4 pt-4">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="GoBack" />
+                <MudText Typo="Typo.h6" Class="font-weight-bold">Exit Edit Mode</MudText>
+            </MudStack>
+        }
+
+        <!-- Selection Screen -->
+        <MudPaper Elevation="0" Class="px-4 py-6">
+            <MudText Typo="Typo.h6" GutterBottom="true" Class="font-weight-bold">
+                Capture Target
+            </MudText>
+            <MudText Typo="Typo.body2" Color="Color.Default" Class="mb-6">
+                Take or select a photo for automatic Object Detection
+            </MudText>
+
+            @if (_isLoading)
+            {
+                <MudText Align="Align.Center" Class="mt-4">Loading and analyzing...</MudText>
+                <MudProgressLinear Indeterminate="true" Class="mt-2" />
+            }
+            else
+            {
+                @if (!ImageProcessingService.IsModelAvailable)
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-6">
+                        <MudText Typo="Typo.caption">
+                            Object Detection model not found. Please ensure object_detection_model.onnx is available.
+                        </MudText>
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Success" Dense="true" Class="mb-6">
+                        <MudText Typo="Typo.caption">
+                            Object Detection model loaded successfully
+                        </MudText>
+                    </MudAlert>
+                }
+
+                <MudStack Spacing="3">
+                    <!-- Action Cards -->
+                    <div Class="cursor-pointer d-flex align-center gap-4 px-4 py-3" @onclick="CapturePhotoAsync" Style="transition: all 0.2s ease; border-radius: 6px; border: 1px solid var(--mud-palette-lines-default); background-color: var(--mud-palette-surface);">
+                        <MudStack Style="flex: 1;">
+                            <MudText Typo="Typo.h6" Class="font-weight-bold">Take Photo</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Default">Capture & Analyze</MudText>
+                        </MudStack>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Capture</MudButton>
+                    </div>
+
+                    <div Class="cursor-pointer d-flex align-center gap-4 px-4 py-3" @onclick="PickPhotoAsync" Style="transition: all 0.2s ease; border-radius: 6px; border: 1px solid var(--mud-palette-lines-default); background-color: var(--mud-palette-surface);">
+                        <MudStack Style="flex: 1;">
+                            <MudText Typo="Typo.h6" Class="font-weight-bold">From Gallery</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Default">Select & Analyze</MudText>
+                        </MudStack>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Select</MudButton>
+                    </div>
+
+                    <div Class="cursor-pointer d-flex align-center gap-4 px-4 py-3" @onclick="BrowseStorageAsync" Style="transition: all 0.2s ease; border-radius: 6px; border: 1px solid var(--mud-palette-lines-default); background-color: var(--mud-palette-surface);">
+                        <MudStack Style="flex: 1;">
+                            <MudText Typo="Typo.h6" Class="font-weight-bold">Browse Files</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Default">Browse & Analyze</MudText>
+                        </MudStack>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Browse</MudButton>
+                    </div>
+                </MudStack>
+
+                <!-- Recent Images -->
+                @if (_storedImages.Any())
+                {
+                    <MudDivider Class="my-6" />
+                    <MudText Typo="Typo.subtitle2" Class="mb-4 font-weight-bold">Recent Images</MudText>
+
+                    <MudGrid Spacing="1">
+                        @foreach (var imagePath in _storedImages.Take(4))
+                        {
+                            var base64 = _storedImageThumbnails.ContainsKey(imagePath)
+                                ? _storedImageThumbnails[imagePath]
+                                : "";
+
+                            <MudItem xs="3">
+                                <MudPaper Elevation="0" Class="cursor-pointer" Style="aspect-ratio: 1; overflow: hidden; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s ease;"
+                                            @onclick="() => SelectStoredImageAsync(imagePath)"
+                                            @onmouseenter="@((e) => _thumbHover = imagePath)"
+                                            @onmouseleave="@(() => _thumbHover = null)">
+                                    @if (!string.IsNullOrEmpty(base64))
+                                    {
+                                        <MudImage Src="@($"data:image/jpeg;base64,{base64}")" Alt="recent" Style="width: 100%; height: 100%; object-fit: cover;" />
+                                    }
+                                </MudPaper>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+            }
+        </MudPaper>
+    }
+    else if (_isReviewMode)
+    {
+            <!-- Review Mode Screen -->
+            <div class="d-flex flex-column" style="height: calc(100vh - 80px);">
+                <MudText Typo="Typo.h6" Class="font-weight-bold px-4">Correct Detections</MudText>
+                <MudText Typo="Typo.caption" Class="px-4 mb-2" Style="opacity: 0.7;">
+                    Tap a detection to select, then drag to adjust or change score.
+                </MudText>
+
+                <div class="flex-grow-1 d-flex align-center justify-center pa-2" style="background: #222; overflow: hidden; position: relative; border-radius: 16px;">
+                    <!-- The scaling container: exactly matches image aspect ratio -->
+                    <div style="position: relative; width: fit-content; height: fit-content; max-width: 100%; max-height: 100%;">
+                        <img @ref="_reviewImageElement" src="@($"data:image/jpeg;base64,{_originalImageBase64}")" 
+                             alt="correct" style="display: block; max-width: 100%; max-height: 55vh; object-fit: contain; pointer-events: none;"/>
+                        <canvas @ref="_reviewCanvasElement" id="correction-canvas" 
+                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none;"></canvas>
+                    </div>
+                </div>
+
+                <MudCard Elevation="0" Class="mt-2 pa-2" Style="background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-radius: 12px; margin-bottom: 20px;">
+                    <div class="d-flex flex-wrap gap-1 justify-center align-center">
+                        @for (int i = 10; i >= 1; i--)
+                        {
+                            int score = i;
+                            <MudButton Variant="@(_selectedNewScore == score ? Variant.Filled : Variant.Outlined)"
+                                       Color="@GetScoreButtonMudColor(score)"
+                                       Size="Size.Medium"
+                                       Style="min-width: 38px; width: 38px; height: 38px; border-radius: 19px; padding: 0; font-weight: 800; font-size: 0.95rem;"
+                                       OnClick="@(() => SelectNewScore(score))">
+                                @score
+                            </MudButton>
+                        }
+                        <MudButton Variant="@(_selectedNewScore == 100 ? Variant.Filled : Variant.Outlined)"
+                                   Color="@GetScoreButtonMudColor(100)"
+                                   Size="Size.Small"
+                                   Style="min-width: 38px; width: 38px; height: 38px; border-radius: 19px; padding: 0; font-weight: 800; font-size: 0.55rem; line-height: 1;"
+                                   OnClick="@(() => SelectNewScore(100))">
+                            TARGET
+                        </MudButton>
+                        <MudButton Variant="@(_selectedNewScore == 0 ? Variant.Filled : Variant.Outlined)" 
+                                   Color="@GetScoreButtonMudColor(0)" 
+                                   Size="Size.Medium"
+                                   Style="min-width: 38px; width: 38px; height: 38px; border-radius: 19px; padding: 0; font-weight: 800; font-size: 0.95rem;"
+                                   OnClick="@(() => SelectNewScore(0))">
+                            M
+                        </MudButton>
+                    </div>
+
+                <MudStack Row="true" Spacing="1" Class="mt-3">
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Check" OnClick="@(() => ExitReviewModeAsync(true))" Size="Size.Medium" Style="flex: 1; height: 44px; border-radius: 22px; font-weight: bold;">
+                        Done
+                    </MudButton>
+                    <MudIconButton Icon="@Icons.Material.Filled.Undo" Color="Color.Info" Variant="Variant.Outlined" OnClick="UndoCorrection" Disabled="@(!_history.Any())" Style="width: 44px; height: 44px; border-radius: 22px;" Size="Size.Small" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Variant="Variant.Outlined" OnClick="DeleteSelectedCorrection" Disabled="@(_selectedCorrectionIndex < 0)" Style="width: 44px; height: 44px; border-radius: 22px;" Size="Size.Small" />
+                </MudStack>
+                
+                <MudButton Variant="Variant.Text" Color="Color.Default" FullWidth="true" OnClick="@(() => ExitReviewModeAsync(false))" Class="mt-1" Style="text-transform: none; opacity: 0.6; font-size: 0.75rem; min-height: 24px;">
+                    Cancel
+                </MudButton>
+            </MudCard>
+        </div>
+    }
+    else
+    {
+        @if (IsEditingExistingEnd)
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4 pt-4 px-4">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="GoBack" />
+                <MudText Typo="Typo.h6" Class="font-weight-bold">End Details</MudText>
+            </MudStack>
+        }
+
+        <!-- Results Screen -->
+        <MudPaper Elevation="0" Class="px-4 py-6">
+            @if (_analysisResult?.Status == AnalysisStatus.Failure)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-6">
+                    <span>Analysis complete, but with issues.</span>
+                </MudAlert>
+            }
+
+            <div class="result-image-section" style="position: relative; width: 100%; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: #f5f5f5; margin-bottom: 24px;">
+                <img @ref="_resultImageElement" src="@($"data:image/jpeg;base64,{_annotatedImageBase64}")" alt="analyzed" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;" />
+                <canvas @ref="_resultCanvasElement" id="results-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: zoom-in; touch-action: none;"></canvas>
+            </div>
+
+            @if (_analysisResult?.Status == AnalysisStatus.Success)
+            {
+                <MudText Typo="Typo.subtitle1" Color="Color.Success" Align="Align.Center" Class="mb-4">Target analyzed successfully!</MudText>
+            }
+
+            @if (_analysisResult != null)
+            {
+                <MudStack Spacing="3" Class="mb-6">
+                    <MudPaper Elevation="0" Class="pa-4 flex-grow-1" Style="background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                            <MudStack Spacing="0">
+                                <MudText Typo="Typo.subtitle2" Color="Color.Surface" Style="opacity: 0.7; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Session Score</MudText>
+                                <MudText Typo="Typo.h2" Color="Color.Surface" Class="font-weight-bold" Style="line-height: 1;">
+                                    @_analysisResult.TotalScore
+                                </MudText>
+                            </MudStack>
+                            
+                            <div style="width: 85px; height: 85px; position: relative;">
+                                <svg viewBox="0 0 100 100" style="width: 100%; height: 100%; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4));">
+                                    <!-- Background Colors -->
+                                    <circle cx="50" cy="50" r="45" fill="#f8f9fa" /> <!-- White (2, 1) -->
+                                    <circle cx="50" cy="50" r="36" fill="#212529" /> <!-- Black (4, 3) -->
+                                    <circle cx="50" cy="50" r="27" fill="#00a8e8" /> <!-- Blue (6, 5) -->
+                                    <circle cx="50" cy="50" r="18" fill="#d90429" /> <!-- Red (8, 7) -->
+                                    <circle cx="50" cy="50" r="9" fill="#ffc300" /> <!-- Gold (10, 9) -->
+                                    
+                                    <!-- All 10 Ring Lines for Precision -->
+                                    @for (int i = 1; i <= 10; i++)
+                                    {
+                                        var radius = i * 4.5;
+                                        var strokeColor = i <= 2 ? "rgba(0,0,0,0.3)" : (i <= 8 ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)");
+                                        <circle cx="50" cy="50" r="@radius" fill="none" stroke="@strokeColor" stroke-width="0.2" />
+                                    }
+
+                                    <line x1="48" y1="50" x2="52" y2="50" stroke="black" stroke-width="0.3" opacity="0.3" />
+                                    <line x1="50" y1="48" x2="50" y2="52" stroke="black" stroke-width="0.3" opacity="0.3" />
+
+                                    @foreach (var arrow in _analysisResult.ArrowScores) {
+                                        var (x, y) = GetNormalizedArrowPosition(arrow);
+                                        <!-- Reduced radius from 3 to 2 for better precision -->
+                                        <circle cx="@(50 + x * 45)" cy="@(50 + y * 45)" r="2" fill="cyan" stroke="white" stroke-width="0.5" />
+                                    }
+                                </svg>
+                            </div>
+                        </MudStack>
+                    </MudPaper>
+
+                    @if (_analysisResult.Status == AnalysisStatus.Success)
+                    {
+
+                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold mt-4">Detected Arrows (@_analysisResult.ArrowScores.Count)</MudText>
+                        
+                        @foreach (var arrow in _analysisResult.ArrowScores)
+                        {
+                            <div Class="pa-3" Style="@GetArrowStyle(arrow)">
+                                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                                    <MudStack Style="flex: 1;" Spacing="0">
+                                        <MudText Typo="Typo.body1" Class="font-weight-bold">
+                                            Ring @arrow.Ring
+                                        </MudText>
+                                        <MudText Typo="Typo.caption" Style="opacity: 0.7;">
+                                            Matched with @(arrow.Points) pts
+                                        </MudText>
+                                    </MudStack>
+                                    <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium" Style="font-weight: bold; min-width: 60px;">
+                                        @arrow.Points pts
+                                    </MudChip>
+                                </MudStack>
+                            </div>
+                        }
+                    }
+                </MudStack>
+            }
+
+            <MudStack Spacing="2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large" OnClick="SaveResultAsync">
+                    @(IsEditingExistingEnd ? "Update End" : (SessionState.IsSessionActive ? "Add to Session" : "Save Result"))
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" FullWidth="true" Size="Size.Medium" OnClick="EnterReviewMode" StartIcon="@Icons.Material.Filled.Edit">
+                    Correct Detections
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Default" FullWidth="true" Size="Size.Large" OnClick="ResetAsync">
+                    New Photo
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+</MudContainer>
+

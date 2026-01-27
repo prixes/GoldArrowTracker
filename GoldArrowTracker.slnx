@@ -1,8 +1,16 @@
 <Solution>
-  <Project Path="Archery.Shared/Archery.Shared.csproj" Id="8ad567a6-c98c-41ea-898b-e69b80fbe1c8" />
-  <Project Path="GoldTracker.Edge/GoldTracker.Edge.csproj" Id="ac570a9f-d57a-46c3-a2c2-cdf5de76e268" />
-  <Project Path="GoldTracker.Mobile/GoldTracker.Mobile.csproj" Id="e07d5760-2376-4732-9563-9d1f14071278">
-    <Deploy Solution="Debug|*" />
-  </Project>
-  <Project Path="GoldTracker.Server/GoldTracker.Server.csproj" Id="0ea22bc4-92a8-4b27-81b4-e67a1ac0f7d1" />
+  <Folder Name="/Core/">
+    <Project Path="src/Core/Archery.Shared/Archery.Shared.csproj" />
+  </Folder>
+  <Folder Name="/Edge/">
+    <Project Path="src/Edge/GoldTracker.Edge/GoldTracker.Edge.csproj" />
+  </Folder>
+  <Folder Name="/Presentation/">
+    <Project Path="src/Presentation/GoldTracker.Mobile/GoldTracker.Mobile.csproj" />
+    <Project Path="src/Presentation/GoldTracker.Shared.UI/GoldTracker.Shared.UI.csproj" />
+    <Project Path="src/Presentation/GoldTracker.Web/GoldTracker.Web.csproj" />
+  </Folder>
+  <Folder Name="/Server/">
+    <Project Path="src/Server/GoldTracker.Server/GoldTracker.Server.csproj" />
+  </Folder>
 </Solution>

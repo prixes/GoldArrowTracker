@@ -1,0 +1,120 @@
+.mud-primary-text {
+    color: #4A6D5E !important;
+    /* Forest Green */
+}
+
+.mud-secondary-text {
+    color: #8B5A2B !important;
+    /* Bow Wood */
+}
+
+body {
+    background-color: #3A4F4A;
+    /* Darker Forest Green for body background */
+    overflow-x: hidden;
+}
+
+.page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    position: relative;
+    padding: 10px;
+}
+
+main {
+    flex: 1;
+    padding-bottom: 60px;
+    /* Space for bottom nav */
+}
+
+.back-button {
+    background-color: rgba(74, 109, 94, 0.5);
+    /* Semi-transparent Forest Green */
+    border-radius: 50%;
+    position: absolute;
+    z-index: 2;
+    margin: 0.2rem;
+}
+
+.popover,
+.mud-popover {
+    background-color: rgba(60, 80, 70, 0.8);
+    /* Slightly darker, semi-transparent green */
+    backdrop-filter: blur(5px);
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.4);
+    transition: all 0.7s ease-in-out;
+    z-index: 1000;
+}
+
+.bottom-nav-background-wrapper {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    height: 70px;
+    /* Explicit height to prevent collapse */
+    z-index: 1000;
+    background-color: #6F4F28;
+    /* Solid Leather Brown for opaque background */
+    backdrop-filter: blur(8px);
+    /* Apply blur effect */
+    box-shadow: 0 -1px 5px rgba(0, 0, 0, 0.3);
+    /* Slightly stronger shadow */
+    display: flex;
+    /* Flex container to center content if needed */
+    align-items: center;
+    /* Vertically center the NavMenu */
+    justify-content: center;
+}
+
+/* Ensure the bottom-nav class itself does not have a background if it's the wrapper */
+.bottom-nav {
+    background-color: transparent !important;
+}
+
+/* --- New Design System: Forest Glass --- */
+
+/* 1. Global Background */
+body {
+    background: linear-gradient(135deg, #2D3E38 0%, #1A2623 100%);
+    /* Deep Forest Gradient */
+    background-attachment: fixed;
+    color: #E0E0E0;
+    font-family: 'Segoe UI', 'Roboto', 'Helvetica', sans-serif;
+    overflow-x: hidden;
+}
+
+/* 2. Glassmorphism Utilities */
+.glass-panel {
+    background: rgba(60, 80, 70, 0.4);
+    /* Low opacity forest green */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    border-radius: 16px !important;
+    /* Rounder corners for modern feel */
+}
+
+/* High emphasis glass for active elements or headers */
+.glass-panel-heavy {
+    background: rgba(60, 80, 70, 0.65);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* 3. Text Typography Overrides */
+.text-gold {
+    color: #FFD700 !important;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.text-white-dim {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.text-white {
+    color: #FFFFFF !important;
+}

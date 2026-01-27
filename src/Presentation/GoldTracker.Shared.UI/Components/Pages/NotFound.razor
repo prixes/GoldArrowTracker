@@ -1,0 +1,11 @@
+@page "/not-found"
+@layout GoldTracker.Shared.UI.Components.Layout.MainLayout
+
+<MudContainer>
+    <MudText Typo="Typo.h3" GutterBottom="true">Not Found</MudText>
+    <MudText Typo="Typo.h5" Color="Color.Error" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" Class="mr-2" />
+        Sorry, the content you are looking for does not exist.
+    </MudText>
+    <MudButton Href="/" Variant="Variant.Filled" Color="Color.Primary">Go to Home</MudButton>
+</MudContainer>
