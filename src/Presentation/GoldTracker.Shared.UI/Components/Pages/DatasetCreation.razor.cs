@@ -1,16 +1,15 @@
-// using GoldTracker.Mobile.Services; // Removed
 using GoldTracker.Shared.UI.Services.Abstractions;
+using Archery.Shared.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MudBlazor;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 
 namespace GoldTracker.Shared.UI.Components.Pages
 {
     public partial class DatasetCreation : IDisposable
     {
         [Inject] private ICameraService CameraService { get; set; } = default!;
+        [Inject] private IDatasetExportService DatasetExportService { get; set; } = default!;
         [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
         [Inject] private NavigationManager Navigation { get; set; } = default!;
         [Inject] private ISnackbar Snackbar { get; set; } = default!;
@@ -29,18 +28,11 @@ namespace GoldTracker.Shared.UI.Components.Pages
 
         private string _selectedMode = "target";
         private int _selectedArrowScore = 10;
-        private List<Annotation> _annotations = new();
+        private List<DatasetAnnotation> _annotations = new();
         private string[] _loadedClassLabels = Array.Empty<string>();
         private string[] _loadedClassColors = Array.Empty<string>();
 
-        public class Annotation
-        {
-            public int ClassId { get; set; }
-            public double StartX { get; set; }
-            public double StartY { get; set; }
-            public double EndX { get; set; }
-            public double EndY { get; set; }
-        }
+
 
         protected override void OnInitialized()
         {
@@ -182,7 +174,7 @@ namespace GoldTracker.Shared.UI.Components.Pages
         {
             int classId = _selectedMode == "target" ? 11 : _selectedArrowScore;
 
-            var annotation = new Annotation
+            var annotation = new DatasetAnnotation
             {
                 ClassId = classId,
                 StartX = startX,
@@ -229,145 +221,10 @@ namespace GoldTracker.Shared.UI.Components.Pages
 
             try
             {
-                var hasPermission = await CameraService.RequestStorageWritePermissionAsync();
-                if (!hasPermission)
-                {
-                    Snackbar.Add("Storage permission denied.", Severity.Error);
-                    return;
-                }
+                 // Show processing message
+                Snackbar.Add("Processing and saving dataset...", Severity.Info);
 
-                // Show processing message
-                Snackbar.Add("Processing images... This may take a moment.", Severity.Info);
-
-                var timestamp = $"{DateTime.Now:yyyyMMdd_HHmmssfff}";
-
-                // --- 1. Macro Model (Targets) ---
-                var macroImageDir = Path.Combine("Export", "Macro_Model", "images");
-                var macroLabelDir = Path.Combine("Export", "Macro_Model", "labels");
-
-                // Filter for targets (Class 11)
-                var targets = _annotations.Where(a => a.ClassId == 11).ToList();
-                var targetStrings = new List<string>();
-                foreach (var t in targets)
-                {
-                    var x_center = (t.StartX + t.EndX) / 2.0;
-                    var y_center = (t.StartY + t.EndY) / 2.0;
-                    var width = t.EndX - t.StartX;
-                    var height = t.EndY - t.StartY;
-                    targetStrings.Add($"0 {x_center:F6} {y_center:F6} {width:F6} {height:F6}");
-                }
-
-                if (targetStrings.Any())
-                {
-                    var macroImagePath = await CameraService.SaveImageAsync(_originalImageBytes, $"{timestamp}.jpg", macroImageDir);
-                    if (!string.IsNullOrEmpty(macroImagePath))
-                    {
-                        var macroLabelPath = Path.Combine(Path.GetDirectoryName(macroImagePath)!.Replace("images", "labels"), $"{timestamp}.txt");
-                        // Directory.CreateDirectory handled by implementation if needed (or writing file)
-                        // Use abstracted WriteFileTextAsync
-                        // Wait, WriteFileTextAsync takes path.
-                        // On Web, path is virtual. On Mobile, real.
-                        // We must pass the FULL desired path for mobile.
-                        // But CameraService.WriteFileTextAsync on Web might expect filename?
-                        // Let's rely on consistent pathing.
-                        
-                        await CameraService.WriteFileTextAsync(macroLabelPath, string.Join("\n", targetStrings));
-                        CameraService.TriggerMediaScanner(macroLabelPath);
-                    }
-                }
-
-                // --- 2. Micro Model (Arrows + Target Refinement) ---
-                if (targets.Any())
-                {
-                    await Task.Run(async () =>
-                    {
-                        try
-                        {
-                            Console.WriteLine($"[DatasetCreation] Starting micro model processing for {targets.Count} target(s)...");
-
-                            var microImageDir = Path.Combine("Export", "Micro_Model", "images");
-                            var microLabelDir = Path.Combine("Export", "Micro_Model", "labels");
-
-                            double padding = 0.05; // 5% padding
-
-
-                            int cropIndex = 0;
-                            foreach (var t in targets)
-                            {
-                                cropIndex++;
-                                var cropFileName = $"{timestamp}_crop{cropIndex}";
-
-                                double tW_raw = t.EndX - t.StartX;
-                                double tH_raw = t.EndY - t.StartY;
-
-                                double padX = tW_raw * padding;
-                                double padY = tH_raw * padding;
-
-                                double cropStartX = Math.Max(0, t.StartX - padX);
-                                double cropStartY = Math.Max(0, t.StartY - padY);
-                                double cropEndX = Math.Min(1, t.EndX + padX);
-                                double cropEndY = Math.Min(1, t.EndY + padY);
-
-                                double cropW = cropEndX - cropStartX;
-                                double cropH = cropEndY - cropStartY;
-
-                                byte[] cropBytes;
-                                cropBytes = await ImageProcessingService.CropImageAsync(
-                                    _originalImageBytes,
-                                    cropStartX, cropStartY,
-                                    cropW, cropH);
-
-                                if (cropBytes.Length == 0) continue;
-
-                                var microImagePath = await CameraService.SaveImageAsync(cropBytes, $"{cropFileName}.jpg", microImageDir).ConfigureAwait(false);
-                                if (string.IsNullOrEmpty(microImagePath)) continue;
-
-                                var microStrings = new List<string>();
-                                var tCenterX = (t.StartX + t.EndX) / 2.0;
-                                var tCenterY = (t.StartY + t.EndY) / 2.0;
-                                var tLocalX = (tCenterX - cropStartX) / cropW;
-                                var tLocalY = (tCenterY - cropStartY) / cropH;
-                                var tLocalW = tW_raw / cropW;
-                                var tLocalH = tH_raw / cropH;
-                                microStrings.Add($"11 {tLocalX:F6} {tLocalY:F6} {tLocalW:F6} {tLocalH:F6}");
-
-                                var validArrows = _annotations
-                                    .Where(a => a.ClassId != 11)
-                                    .Where(a =>
-                                    {
-                                        var cX = (a.StartX + a.EndX) / 2.0;
-                                        var cY = (a.StartY + a.EndY) / 2.0;
-                                        return cX >= cropStartX && cX <= cropEndX && cY >= cropStartY && cY <= cropEndY;
-                                    });
-
-                                foreach (var a in validArrows)
-                                {
-                                    var aCenterX = (a.StartX + a.EndX) / 2.0;
-                                    var aCenterY = (a.StartY + a.EndY) / 2.0;
-                                    var aW = a.EndX - a.StartX;
-                                    var aH = a.EndY - a.StartY;
-                                    var x_local = (aCenterX - cropStartX) / cropW;
-                                    var y_local = (aCenterY - cropStartY) / cropH;
-                                    var w_local = aW / cropW;
-                                    var h_local = aH / cropH;
-                                    microStrings.Add($"{a.ClassId} {x_local:F6} {y_local:F6} {w_local:F6} {h_local:F6}");
-                                }
-
-                                if (microStrings.Any())
-                                {
-                                    var microLabelPath = Path.Combine(Path.GetDirectoryName(microImagePath)!.Replace("images", "labels"), $"{cropFileName}.txt");
-                                    await CameraService.WriteFileTextAsync(microLabelPath, string.Join("\n", microStrings));
-                                    CameraService.TriggerMediaScanner(microLabelPath);
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"[DatasetCreation] ERROR in micro processing: {ex.Message}");
-                            throw;
-                        }
-                    });
-                }
+                await DatasetExportService.ExportDatasetAsync(_originalImageBytes, _annotations);
 
                 Snackbar.Add($"Saved hierarchical dataset to Export/", Severity.Success);
                 Reset();

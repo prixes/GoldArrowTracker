@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using MudBlazor.Services;
 using GoldTracker.Web.Services;
 using GoldTracker.Shared.UI.Services.Abstractions;
+using GoldTracker.Shared.UI.Services;
 using Archery.Shared.Models;
 using Archery.Shared.Services;
 
@@ -54,5 +55,6 @@ builder.Services.AddScoped<ITargetScoringService, TargetScoringService>();
 // Register Session Services (browser version uses localStorage)
 builder.Services.AddScoped<ISessionService, BrowserSessionService>();
 builder.Services.AddScoped<ISessionState, BrowserSessionState>();
+builder.Services.AddScoped<IDatasetExportService, DatasetExportService>();
 
 await builder.Build().RunAsync();

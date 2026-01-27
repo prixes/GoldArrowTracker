@@ -4,6 +4,8 @@ using GoldTracker.Mobile.Services;
 using GoldTracker.Mobile.Services.Sessions;
 using Archery.Shared.Models;
 using Archery.Shared.Services;
+
+using GoldTracker.Shared.UI.Services;
 using GoldTracker.Shared.UI.Services.Abstractions;
 
 namespace GoldTracker.Mobile
@@ -83,7 +85,9 @@ namespace GoldTracker.Mobile
 
             // Register Session Services
             builder.Services.AddSingleton<ISessionService, SessionService>();
+
             builder.Services.AddSingleton<ISessionState, SessionState>();
+            builder.Services.AddScoped<IDatasetExportService, DatasetExportService>();
             
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();

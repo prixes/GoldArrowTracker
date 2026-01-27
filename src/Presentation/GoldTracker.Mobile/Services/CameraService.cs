@@ -328,18 +328,7 @@ public class CameraService : ICameraService
     {
         var folder = FileSystem.AppDataDirectory;
         if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
-        // User session logic used "session_images" subdirectory sometimes?
-        // Step 1289 used "session_images".
-        // My implementation here assumes root AppData?
-        // Wait, TargetCapture calls SaveInternalImageAsync.
-        // It passes just filename.
-        // If I want to match User Logic (session_images), I should subdirectory it.
-        // But the previous "SaveInternalImageAsync" usage in TargetCapture I wrote (Step 1352) passed just filename.
-        // I will change this implementation to Put it in "session_images" automagically?
-        // Or leave it in root AppData (Step 1265 captured images go to root AppData).
-        // Let's keep it root for simplicity unless conflict?
-        // TargetCapture (User code) used "session_images".
-        // I'll stick to root AppData for "SaveInternalImageAsync" to match "CapturePhotoAsync" behavior.
+
         
         var path = Path.Combine(folder, fileName);
         await File.WriteAllBytesAsync(path, bytes);
