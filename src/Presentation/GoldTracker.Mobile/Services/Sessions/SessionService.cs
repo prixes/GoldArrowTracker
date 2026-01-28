@@ -1,15 +1,24 @@
 using System.Text.Json;
 using Archery.Shared.Models;
 using Archery.Shared.Services;
+using System.Net.Http.Json;
+using System.Net.Http.Headers;
+using Microsoft.Extensions.Configuration;
 
 namespace GoldTracker.Mobile.Services.Sessions
 {
-    public class SessionService : ISessionService
+    public class SessionService : ISessionService, ISessionSyncService
     {
         private readonly string _sessionsDir;
+        private readonly IServerAuthService _authService;
+        private readonly HttpClient _httpClient;
 
-        public SessionService()
+        public SessionService(IServerAuthService authService, IConfiguration config)
         {
+            _authService = authService;
+             var serverUrl = config["Settings:ServerUrl"] ?? "http://localhost:5000";
+            _httpClient = new HttpClient { BaseAddress = new Uri(serverUrl) };
+
             _sessionsDir = Path.Combine(FileSystem.AppDataDirectory, "sessions");
             if (!Directory.Exists(_sessionsDir))
             {
@@ -80,6 +89,51 @@ namespace GoldTracker.Mobile.Services.Sessions
             if (File.Exists(filePath))
             {
                 await Task.Run(() => File.Delete(filePath));
+            }
+        }
+
+        public async Task<bool> SyncSessionAsync(Session session)
+        {
+            if (!_authService.IsAuthenticated) return false;
+            var token = await _authService.GetAccessTokenAsync();
+            if (string.IsNullOrEmpty(token)) return false;
+
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            try
+            {
+                // 1. Upload Session JSON
+                var response = await _httpClient.PostAsJsonAsync("/api/sessions", session);
+                if (!response.IsSuccessStatusCode) 
+                {
+                    System.Diagnostics.Debug.WriteLine($"Sync failed: {response.ReasonPhrase}");
+                    return false;
+                }
+
+                // 2. Upload Images
+                foreach (var end in session.Ends)
+                {
+                    if (!string.IsNullOrEmpty(end.ImagePath) && File.Exists(end.ImagePath))
+                    {
+                        var fileName = Path.GetFileName(end.ImagePath);
+                        using var content = new MultipartFormDataContent();
+                        using var fileStream = File.OpenRead(end.ImagePath);
+                        content.Add(new StreamContent(fileStream), "file", fileName);
+
+                        var imgResponse = await _httpClient.PostAsync($"/api/sessions/{session.Id}/images/{fileName}", content);
+                        if (!imgResponse.IsSuccessStatusCode)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Image upload failed: {fileName}");
+                             // Continue uploading other images anyway
+                        }
+                    }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Sync Exception: {ex.Message}");
+                return false;
             }
         }
     }

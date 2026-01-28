@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
 using GoldTracker.Mobile.Services;
 using GoldTracker.Mobile.Services.Sessions;
@@ -21,6 +22,16 @@ namespace GoldTracker.Mobile
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                 });
+
+            // Load appsettings.json
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            using var stream = assembly.GetManifestResourceStream("GoldTracker.Mobile.appsettings.json");
+            
+            var config = new ConfigurationBuilder()
+                .AddJsonStream(stream)
+                .Build();
+
+            builder.Configuration.AddConfiguration(config);
 
             builder.Services.AddMauiBlazorWebView();
             builder.Services.AddMudBlazorDialog();
@@ -85,9 +96,12 @@ namespace GoldTracker.Mobile
 
             // Register Session Services
             builder.Services.AddSingleton<ISessionService, SessionService>();
+            builder.Services.AddSingleton<ISessionSyncService>(sp => (SessionService)sp.GetRequiredService<ISessionService>());
 
             builder.Services.AddSingleton<ISessionState, SessionState>();
             builder.Services.AddScoped<IDatasetExportService, DatasetExportService>();
+            builder.Services.AddSingleton<IServerAuthService, ServerAuthService>();
+            builder.Services.AddSingleton<IDatasetSyncService, DatasetSyncService>();
             
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();

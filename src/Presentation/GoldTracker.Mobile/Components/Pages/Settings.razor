@@ -1,0 +1,191 @@
+@page "/settings"
+@using GoldTracker.Mobile.Services
+@inject IServerAuthService AuthService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-4">
+    <MudText Typo="Typo.h4" GutterBottom="true">Settings</MudText>
+
+    <MudPaper Class="pa-4 mt-4">
+        <MudText Typo="Typo.h6">Account</MudText>
+        
+        @if (AuthService.IsAuthenticated)
+        {
+            <MudAlert Severity="Severity.Success" Class="mt-2">Signed In</MudAlert>
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Error" 
+                       Class="mt-2"
+                       OnClick="SignOut">
+                Sign Out
+            </MudButton>
+        }
+        else
+        {
+            <MudText Class="mt-2 mb-4">Sign in to sync your sessions and data to the cloud.</MudText>
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       StartIcon="@Icons.Custom.Brands.Google"
+                       OnClick="SignInWithGoogle">
+                Sign in with Google
+            </MudButton>
+        }
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mt-4">
+        <MudText Typo="Typo.h6">Server Connection</MudText>
+        <MudText Typo="Typo.body2" Class="mt-2">
+            Status: @(AuthService.IsAuthenticated ? "Connected" : "Offline")
+        </MudText>
+        @if (AuthService.IsAuthenticated)
+        {
+             <MudButton Variant="Variant.Filled" 
+                       Color="Color.Secondary" 
+                       Class="mt-4"
+                       Disabled="@_isSyncing"
+                       OnClick="SyncAllSessions">
+                @if (_isSyncing)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                    <MudText Class="ms-2">Syncing...</MudText>
+                }
+                else
+                {
+                    <MudText>Sync All Sessions</MudText>
+                }
+            </MudButton>
+
+             <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       Class="mt-2"
+                       Disabled="@_isDatasetSyncing"
+                       OnClick="SyncDatasets">
+                @if (_isDatasetSyncing)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                    <MudText Class="ms-2">Syncing...</MudText>
+                }
+                else
+                {
+                    <MudText>Sync Processed Datasets (Export)</MudText>
+                }
+            </MudButton>
+        }
+    </MudPaper>
+</MudContainer>
+
+@using Microsoft.Extensions.Configuration
+@inject IConfiguration Config
+
+@using GoldTracker.Mobile.Services.Sessions
+@using Archery.Shared.Services
+@inject ISessionSyncService SessionSyncService
+@inject ISessionService SessionService
+
+@inject IDatasetSyncService DatasetSyncService
+
+@code {
+    private bool _isSyncing = false;
+    private bool _isDatasetSyncing = false;
+
+    private async Task SyncDatasets()
+    {
+        if (_isDatasetSyncing) return;
+        _isDatasetSyncing = true;
+        
+        try
+        {
+            var count = await DatasetSyncService.SyncExportedDatasetsAsync();
+            if (count > 0)
+                Snackbar.Add($"Synced {count} dataset files successfully!", Severity.Success);
+            else
+                Snackbar.Add("No dataset files found to sync.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Dataset Sync Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isDatasetSyncing = false;
+        }
+    }
+
+    private async Task SyncAllSessions()
+    {
+        if (_isSyncing) return;
+        _isSyncing = true;
+        
+        try
+        {
+            var sessions = await SessionService.GetSessionsAsync();
+            int successCount = 0;
+            
+            foreach(var session in sessions)
+            {
+                 var success = await SessionSyncService.SyncSessionAsync(session);
+                 if(success) successCount++;
+            }
+            
+            if (successCount > 0)
+                Snackbar.Add($"Synced {successCount} sessions successfully!", Severity.Success);
+            else if (sessions.Count > 0)
+                Snackbar.Add("Failed to sync sessions.", Severity.Error);
+            else
+                Snackbar.Add("No sessions to sync.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Sync Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSyncing = false;
+        }
+    }
+
+    private async Task SignInWithGoogle()
+    {
+        try
+        {
+            var serverUrl = Config["Settings:ServerUrl"] ?? "http://10.0.2.2:5000";
+            var authUrl = $"{serverUrl}/api/auth/login-redirect"; 
+            var result = await WebAuthenticator.Default.AuthenticateAsync(
+                new Uri(authUrl),
+                new Uri("goldtracker://")
+            );
+
+            // The WebAuthenticator parses the fragment/query into result.AccessToken if the key is 'access_token'
+            if (!string.IsNullOrEmpty(result?.AccessToken))
+            {
+                await AuthService.SetAccessTokenAsync(result.AccessToken);
+                Snackbar.Add("Successfully Signed In", Severity.Success);
+                StateHasChanged();
+            }
+            else
+            {
+                 Snackbar.Add("No token received from login", Severity.Warning);
+            }
+        }
+        catch (TaskCanceledException)
+        {
+             Snackbar.Add("Sign in canceled.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SignOut()
+    {
+        await AuthService.LogoutAsync();
+        Snackbar.Add("Signed Out", Severity.Info);
+        StateHasChanged();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Try to restore session on load
+        await AuthService.InitializeAsync();
+    }
+}
