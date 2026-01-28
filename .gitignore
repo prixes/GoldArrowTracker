@@ -42,3 +42,18 @@ Thumbs.db
 *.md
 /msbuild.binlog
 /publish_output.txt
+
+# --- Secrets / Config ---
+appsettings.json
+appsettings.Development.json
+!appsettings.Example.json
+*.db
+*.db-shm
+*.db-wal
+
+# --- App Data ---
+App_Data/
+src/Server/GoldTracker.Server/App_Data/
+/src/Server/GoldTracker.Server/appsettings.json
+/src/Server/GoldTracker.Server/appsettings.json
+/src/Server/GoldTracker.Server/appsettings.json
