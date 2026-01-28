@@ -1,0 +1,79 @@
+@page "/login"
+@layout GoldTracker.Shared.UI.Components.Layout.EmptyLayout
+@using GoldTracker.Shared.UI.Services.Abstractions
+@using MudBlazor
+@inject IServerAuthService AuthService
+@inject NavigationManager Navigation
+
+<MudContainer MaxWidth="MaxWidth.False" Class="d-flex align-center justify-center mud-width-full" Style="height: 100vh; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+    <MudPaper Elevation="25" Class="pa-8 d-flex flex-column align-center gap-4 rounded-xl" Style="width: 100%; max-width: 400px; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);">
+        
+        <MudAvatar Color="Color.Warning" Size="Size.Large" Style="width: 80px; height: 80px; font-size: 2rem;">
+            G
+        </MudAvatar>
+        
+        <MudText Typo="Typo.h5" Align="Align.Center" Style="font-weight: 700; color: white; letter-spacing: 1px;">GOLD ARROW TRACKER</MudText>
+        <MudText Typo="Typo.body2" Align="Align.Center" Class="mb-6" Style="color: rgba(255,255,255,0.7);">Track your archery progress with precision</MudText>
+
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   Size="Size.Large" 
+                   FullWidth="true"
+                   StartIcon="@Icons.Custom.Brands.Google"
+                   OnClick="SignInAsync"
+                   Class="rounded-lg py-3"
+                   Style="text-transform: none; font-weight: 600;">
+            Continue with Google
+        </MudButton>
+        
+        <MudButton Variant="Variant.Text" 
+                   Color="Color.Inherit" 
+                   OnClick="SkipLogin"
+                   Class="rounded-lg py-2 mt-2"
+                   Style="text-transform: none; color: rgba(255,255,255,0.6);">
+            Skip Login (Offline Mode)
+        </MudButton>
+        
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2 text-center" Style="background: rgba(244, 67, 54, 0.2); color: #ffcdd2;">@_errorMessage</MudAlert>
+        }
+
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private async Task SignInAsync()
+    {
+        try
+        {
+            _errorMessage = null;
+            await AuthService.SignInAsync();
+            if (AuthService.IsAuthenticated)
+            {
+                Navigation.NavigateTo("/");
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "Login failed. Please try again.";
+            Console.WriteLine(ex);
+        }
+    }
+
+    private void SkipLogin()
+    {
+        AuthService.SetGuestMode();
+        Navigation.NavigateTo("/");
+    }
+}

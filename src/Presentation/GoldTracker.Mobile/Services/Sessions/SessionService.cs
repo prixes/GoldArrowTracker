@@ -5,7 +5,10 @@ using System.Net.Http.Json;
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Configuration;
 using System.Collections.Concurrent;
+using GoldTracker.Shared.UI;
+using GoldTracker.Shared.UI.Services.Abstractions;
 using GoldTracker.Shared.UI.Models;
+using GoldTracker.Shared.UI.Services.Abstractions;
 
 namespace GoldTracker.Mobile.Services.Sessions
 {
@@ -18,8 +21,12 @@ namespace GoldTracker.Mobile.Services.Sessions
         public SessionService(IServerAuthService authService, IConfiguration config)
         {
             _authService = authService;
-             var serverUrl = config["Settings:ServerUrl"] ?? "http://localhost:5000";
-            _httpClient = new HttpClient { BaseAddress = new Uri(serverUrl) };
+            var serverUrl = config["Settings:ServerUrl"] ?? "http://localhost:5000";
+
+            _httpClient = new HttpClient { 
+                BaseAddress = new Uri(serverUrl),
+                Timeout = TimeSpan.FromMinutes(5) // Allow time for large image syncs on slow connections
+            };
 
             _sessionsDir = Path.Combine(FileSystem.AppDataDirectory, "sessions");
             if (!Directory.Exists(_sessionsDir))
@@ -30,27 +37,69 @@ namespace GoldTracker.Mobile.Services.Sessions
 
         public async Task<List<Session>> GetSessionsAsync()
         {
-            var sessions = new List<Session>();
-            var files = Directory.GetFiles(_sessionsDir, "*.json");
-
-            foreach (var file in files)
+            return await Task.Run(async () => 
             {
-                try
-                {
-                    var json = await File.ReadAllTextAsync(file);
-                    var session = JsonSerializer.Deserialize<Session>(json);
-                    if (session != null)
-                    {
-                        sessions.Add(session);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error loading session {file}: {ex.Message}");
-                }
-            }
+                var sessions = new ConcurrentBag<Session>();
+                if (!Directory.Exists(_sessionsDir)) return new List<Session>();
 
-            return sessions.OrderByDescending(s => s.StartTime).ToList();
+                var files = Directory.GetFiles(_sessionsDir, "*.json");
+                
+                // Limit parallelism on mobile to avoid UI thread starvation
+                var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
+
+                await Parallel.ForEachAsync(files, options, async (file, ct) => 
+                {
+                    try
+                    {
+                        var json = await File.ReadAllTextAsync(file, ct);
+                        var session = JsonSerializer.Deserialize<Session>(json);
+                        if (session != null)
+                        {
+                            sessions.Add(session);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error loading session {file}: {ex.Message}");
+                    }
+                    // Yield occasionally to allow other things to happen
+                    if (sessions.Count % 5 == 0) await Task.Yield();
+                });
+
+                return sessions.OrderByDescending(s => s.StartTime).ToList();
+            });
+        }
+
+        public async Task<Session?> GetUnfinishedSessionAsync()
+        {
+            return await Task.Run(async () => 
+            {
+                var files = Directory.GetFiles(_sessionsDir, "*.json");
+                if (files.Length == 0) return null;
+
+                // Optimization: check files from newest to oldest for an unfinished one
+                var sortedFiles = files.Select(f => new FileInfo(f))
+                                      .OrderByDescending(fi => fi.LastWriteTime)
+                                      .Take(10); // Check only the 10 most recent sessions to avoid hanging on large histories
+
+                foreach (var file in sortedFiles)
+                {
+                    try
+                    {
+                        var json = await File.ReadAllTextAsync(file.FullName);
+                        if (json.Contains("\"EndTime\":null")) // Micro-optimization: check string before full JSON parse
+                        {
+                            var session = JsonSerializer.Deserialize<Session>(json);
+                            if (session != null && session.EndTime == null)
+                            {
+                                return session;
+                            }
+                        }
+                    }
+                    catch { /* Ignore */ }
+                }
+                return null;
+            });
         }
 
         public async Task<Session?> GetSessionAsync(Guid id)
@@ -106,11 +155,20 @@ namespace GoldTracker.Mobile.Services.Sessions
             {
                 progress?.Report(new SyncProgress(0, $"Uploading session {session.Id}..."));
                 
-                // 1. Upload Session JSON
-                var response = await _httpClient.PostAsJsonAsync("/api/sessions", session);
+                // 1. Upload Session JSON (Cleaned of local paths and prefixes)
+                var sessionToUpload = JsonSerializer.Deserialize<Session>(JsonSerializer.Serialize(session))!;
+                foreach(var end in sessionToUpload.Ends)
+                {
+                    if (!string.IsNullOrEmpty(end.ImagePath))
+                    {
+                        end.ImagePath = GetCleanFileName(end.ImagePath, session.Id);
+                    }
+                }
+
+                var response = await _httpClient.PostAsJsonAsync("/api/sessions", sessionToUpload);
                 if (!response.IsSuccessStatusCode) 
                 {
-                    System.Diagnostics.Debug.WriteLine($"Sync failed: {response.ReasonPhrase}");
+                    System.Diagnostics.Debug.WriteLine($"[SessionSync] Session upload failed: {response.ReasonPhrase}");
                     return false;
                 }
 
@@ -122,21 +180,39 @@ namespace GoldTracker.Mobile.Services.Sessions
                 int totalImages = validImages.Count;
                 if (totalImages > 0)
                 {
-                    var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = 4 };
+                    var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = 2 }; // Reduced parallelism for reliability
                     int processedImages = 0;
 
                     await Parallel.ForEachAsync(validImages, parallelOptions, async (end, ct) => 
                     {
-                        var fileName = Path.GetFileName(end.ImagePath);
-                        using var content = new MultipartFormDataContent();
-                        using var fileStream = File.OpenRead(end.ImagePath);
-                        content.Add(new StreamContent(fileStream), "file", fileName);
+                        try
+                        {
+                            var cleanName = GetCleanFileName(end.ImagePath, session.Id);
+                            var encodedFileName = System.Net.WebUtility.UrlEncode(cleanName);
+                            
+                            using var content = new MultipartFormDataContent();
+                            using var fileStream = File.OpenRead(end.ImagePath);
+                            content.Add(new StreamContent(fileStream), "file", cleanName);
 
-                        var imgResponse = await _httpClient.PostAsync($"/api/sessions/{session.Id}/images/{fileName}", content);
-                        
-                        var current = Interlocked.Increment(ref processedImages);
-                        var percent = (double)current / totalImages * 100;
-                        progress?.Report(new SyncProgress(percent, $"Uploading image {current}/{totalImages}"));
+                            // We upload to the 'clean' name on the server
+                            var imgResponse = await _httpClient.PostAsync($"/api/sessions/{session.Id}/images/{encodedFileName}", content, ct);
+                            
+                            if (!imgResponse.IsSuccessStatusCode)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[SessionSync] Failed to upload image {cleanName}: {imgResponse.ReasonPhrase}");
+                            }
+
+                            var current = Interlocked.Increment(ref processedImages);
+                            var percent = (double)current / totalImages * 100;
+                            progress?.Report(new SyncProgress(percent, $"Uploading image {current}/{totalImages}"));
+                            
+                            // Small throttle
+                            await Task.Delay(50, ct);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[SessionSync] Error uploading image: {ex.Message}");
+                        }
                     });
                 }
                 
@@ -196,30 +272,36 @@ namespace GoldTracker.Mobile.Services.Sessions
                     {
                          // Download images in parallel within the session (or sequentially if we want to avoid flooding network)
                          // Let's do sequential for images within a session to keep it simple, since we parallelize sessions.
-                         foreach(var end in imagesToDownload)
-                         {
-                             var fileName = Path.GetFileName(end.ImagePath);
-                             var localFileName = $"synced_{serverSession.Id}_{fileName}";
-                             var localPath = Path.Combine(FileSystem.AppDataDirectory, localFileName);
+                          foreach(var end in imagesToDownload)
+                          {
+                              var rawName = Path.GetFileName(end.ImagePath);
+                              var cleanName = GetCleanFileName(rawName, serverSession.Id);
+                              var encodedFileName = System.Net.WebUtility.UrlEncode(cleanName);
+                              
+                              // Local file always has exactly one prefix for consistency
+                              var localFileName = $"synced_{serverSession.Id}_{cleanName}";
+                              var localPath = Path.Combine(FileSystem.AppDataDirectory, localFileName);
 
-                             if (!File.Exists(localPath))
-                             {
-                                 try 
-                                 {
-                                     var imgBytes = await _httpClient.GetByteArrayAsync($"/api/sessions/{serverSession.Id}/images/{fileName}");
-                                     await File.WriteAllBytesAsync(localPath, imgBytes);
-                                     end.ImagePath = localPath; // Update path
-                                 }
-                                 catch 
-                                 { 
-                                     // Ignore failure, maybe placeholder?
-                                 }
-                             }
-                             else
-                             {
-                                 end.ImagePath = localPath;
-                             }
-                         }
+                              if (!File.Exists(localPath))
+                              {
+                                  try 
+                                  {
+                                      var imageUrl = $"/api/sessions/{serverSession.Id}/images/{encodedFileName}";
+                                      var imgBytes = await _httpClient.GetByteArrayAsync(imageUrl, ct);
+                                      await File.WriteAllBytesAsync(localPath, imgBytes, ct);
+                                      end.ImagePath = localPath; // Update path
+                                      System.Diagnostics.Debug.WriteLine($"[SessionSync] Downloaded image: {cleanName}");
+                                  }
+                                  catch (Exception ex)
+                                  { 
+                                      System.Diagnostics.Debug.WriteLine($"[SessionSync] Error downloading image {cleanName}: {ex.Message}");
+                                  }
+                              }
+                              else
+                              {
+                                  end.ImagePath = localPath;
+                              }
+                          }
                     }
 
                     // 4. Save Session Locally
@@ -233,6 +315,22 @@ namespace GoldTracker.Mobile.Services.Sessions
             }
 
             return importedCount;
+        }
+
+        private string GetCleanFileName(string path, Guid sessionId)
+        {
+            if (string.IsNullOrEmpty(path)) return string.Empty;
+            
+            var fileName = Path.GetFileName(path);
+            var prefix = $"synced_{sessionId}_";
+            
+            // Loop in case multiple prefixes were accidentally added
+            while (fileName.StartsWith(prefix))
+            {
+                fileName = fileName.Substring(prefix.Length);
+            }
+            
+            return fileName;
         }
     }
 }

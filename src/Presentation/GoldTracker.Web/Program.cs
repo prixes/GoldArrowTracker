@@ -7,12 +7,25 @@ using GoldTracker.Shared.UI.Services.Abstractions;
 using GoldTracker.Shared.UI.Services;
 using Archery.Shared.Models;
 using Archery.Shared.Services;
+using GoldTracker.Shared.UI;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+builder.Services.AddScoped(sp => 
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var serverUrl = config["Settings:ServerUrl"];
+    
+    // If not configured, use the current host address
+    if (string.IsNullOrEmpty(serverUrl) || serverUrl.Contains("localhost"))
+    {
+        serverUrl = builder.HostEnvironment.BaseAddress;
+    }
+    
+    return new HttpClient { BaseAddress = new Uri(serverUrl) };
+});
 
 // Add MudBlazor services
 builder.Services.AddMudServices();
@@ -22,6 +35,7 @@ builder.Services.AddMudServices();
 builder.Services.AddScoped<IPlatformImageService, BrowserImageService>();
 // builder.Services.AddScoped<IFileStorageService, BrowserFileStorageService>();
 builder.Services.AddScoped<ICameraService, WebCameraService>();
+builder.Services.AddScoped<IServerAuthService, BrowserAuthService>();
 
 // Register Object Detection Configuration
 builder.Services.AddSingleton(sp =>
@@ -37,24 +51,20 @@ builder.Services.AddSingleton(sp =>
     }
 });
 
-// Register Object Detection Service (browser version)
-builder.Services.AddScoped<IObjectDetectionService>(sp =>
-{
-    var config = sp.GetRequiredService<ObjectDetectionConfig>();
-    var preprocessor = new DefaultImagePreprocessor(); // Browser uses default preprocessor
-    
-    // For browser, we'll use the ONNX model from wwwroot
-    string modelPath = "wwwroot/ObjectModels/object_detection_model.onnx";
-    
-    return new ObjectDetectionService(modelPath, config, preprocessor);
-});
+// Register Object Detection Service (browser version - no-op for now)
+builder.Services.AddScoped<IObjectDetectionService, NoOpObjectDetectionService>();
 
 // Register Target Scoring Service
 builder.Services.AddScoped<ITargetScoringService, TargetScoringService>();
 
 // Register Session Services (browser version uses localStorage)
-builder.Services.AddScoped<ISessionService, BrowserSessionService>();
+builder.Services.AddScoped<BrowserSessionService>();
+builder.Services.AddScoped<ISessionService>(sp => sp.GetRequiredService<BrowserSessionService>());
+builder.Services.AddScoped<ISessionSyncService>(sp => sp.GetRequiredService<BrowserSessionService>());
 builder.Services.AddScoped<ISessionState, BrowserSessionState>();
+builder.Services.AddScoped<IPreferenceService, BrowserPreferenceService>();
+builder.Services.AddScoped<IPlatformProvider, BrowserPlatformProvider>();
+builder.Services.AddScoped<IDatasetSyncService, BrowserDatasetSyncService>();
 builder.Services.AddScoped<IDatasetExportService, DatasetExportService>();
 
 await builder.Build().RunAsync();

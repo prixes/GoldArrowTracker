@@ -118,11 +118,32 @@ public static class SessionEndpoints
 
             var blobName = $"{userId}/{sessionId}/images/{fileName}";
             
+            // 1. Try exact match
             if (await storage.ExistsAsync("sessions", blobName))
             {
                 var stream = await storage.GetBlobAsync("sessions", blobName);
-                return Results.Stream(stream, "image/jpeg"); // Assume jpeg for simplicity
+                return Results.Stream(stream, "image/jpeg");
             }
+
+            // 2. Resilient Fallback: If exact match fails, search for a file that ends with this name
+            // (Fixes issues where files were uploaded with 'synced_{id}_' prefixes)
+            try
+            {
+                var imagesPath = $"sessions/{userId}/{sessionId}/images";
+                var files = await storage.ListBlobsAsync(imagesPath);
+                var matchingFile = files.FirstOrDefault(f => 
+                    f.Equals(fileName, StringComparison.OrdinalIgnoreCase) || 
+                    f.EndsWith("_" + fileName, StringComparison.OrdinalIgnoreCase));
+
+                if (matchingFile != null)
+                {
+                    var fallbackBlobName = $"{userId}/{sessionId}/images/{matchingFile}";
+                    var stream = await storage.GetBlobAsync("sessions", fallbackBlobName);
+                    return Results.Stream(stream, "image/jpeg");
+                }
+            }
+            catch { /* Ignore search errors */ }
+
             return Results.NotFound();
         });
     }

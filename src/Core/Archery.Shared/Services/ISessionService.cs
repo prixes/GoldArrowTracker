@@ -6,6 +6,7 @@ namespace Archery.Shared.Services
     {
         Task<List<Session>> GetSessionsAsync();
         Task<Session?> GetSessionAsync(Guid id);
+        Task<Session?> GetUnfinishedSessionAsync();
         Task SaveSessionAsync(Session session);
         Task DeleteSessionAsync(Guid id);
     }

@@ -69,4 +69,15 @@ public interface IPlatformImageService
     /// <param name="originalHeight">Original image height</param>
     /// <returns>Base64 encoded annotated image</returns>
     Task<string> DrawDetectionsOnImageAsync(byte[] imageBytes, TargetAnalysisResult result, int originalWidth, int originalHeight);
+
+    /// <summary>
+    /// Loads image bytes from a path (local or remote depending on platform).
+    /// </summary>
+    Task<byte[]> LoadImageBytesAsync(string path, Guid? sessionId = null);
+
+    /// <summary>
+    /// Prepares an image for display, optionally with detections burned in.
+    /// This allows platforms to optimize (e.g., Web uses native canvas, Mobile burns in).
+    /// </summary>
+    Task<string> GetImageDisplaySourceAsync(byte[] imageBytes, TargetAnalysisResult? analysisResult = null);
 }

@@ -1,0 +1,127 @@
+@page "/settings"
+@namespace GoldTracker.Shared.UI.Components.Pages.Settings
+@using GoldTracker.Shared.UI.Services.Abstractions
+@using MudBlazor
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-4 archery-container">
+    <MudText Typo="Typo.h4" GutterBottom="true" Class="font-weight-bold">Settings</MudText>
+
+    <MudPaper Class="pa-4 mt-4 rounded-xl" Elevation="0" Style="border: 1px solid var(--mud-palette-lines-default);">
+        <MudText Typo="Typo.h6">Appearance</MudText>
+        <div class="d-flex align-center justify-space-between mt-2">
+            <MudText>Dark Mode</MudText>
+            <MudSwitch T="bool" 
+                      Value="@PreferenceService.IsDarkMode" 
+                      ValueChanged="@OnDarkModeDataChanged" 
+                      Color="Color.Primary" />
+        </div>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mt-4 rounded-xl" Elevation="0" Style="border: 1px solid var(--mud-palette-lines-default);">
+        <MudText Typo="Typo.h6">Account</MudText>
+        
+        @if (AuthService.IsAuthenticated)
+        {
+            <div class="d-flex align-center gap-3 mt-2">
+                @if (!string.IsNullOrEmpty(AuthService.CurrentUser?.PictureUrl))
+                {
+                    <MudAvatar Image="@AuthService.CurrentUser.PictureUrl" Size="Size.Medium" />
+                }
+                else
+                {
+                    <MudAvatar Color="Color.Primary" Size="Size.Medium">@AuthService.CurrentUser?.Name?.FirstOrDefault()</MudAvatar>
+                }
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.body1" Class="font-weight-bold">@AuthService.CurrentUser?.Name</MudText>
+                    <MudText Typo="Typo.caption">@AuthService.CurrentUser?.Email</MudText>
+                </MudStack>
+            </div>
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Error" 
+                       Class="mt-4 rounded-lg"
+                       FullWidth="true"
+                       OnClick="SignOut">
+                Sign Out
+            </MudButton>
+        }
+        else
+        {
+            <MudText Class="mt-2 mb-4">Sign in to sync your sessions and data to the cloud.</MudText>
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       StartIcon="@Icons.Custom.Brands.Google"
+                       OnClick="SignInWithGoogle"
+                       FullWidth="true"
+                       Class="rounded-lg py-3">
+                Sign in with Google
+            </MudButton>
+        }
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mt-4 rounded-xl mb-8" Elevation="0" Style="border: 1px solid var(--mud-palette-lines-default);">
+        <MudText Typo="Typo.h6">Cloud Sync</MudText>
+        <MudText Typo="Typo.body2" Class="mt-2" Color="@(AuthService.IsAuthenticated ? Color.Success : Color.Default)">
+            Status: @(AuthService.IsAuthenticated ? "Connected" : "Offline / Guest")
+        </MudText>
+        
+        @if (AuthService.IsAuthenticated)
+        {
+             <div class="d-flex flex-column gap-3 mt-4">
+                 @if (_isSyncing)
+                 {
+                     <MudPaper Class="pa-3 rounded-lg" Outlined="true" Style="background: rgba(var(--mud-palette-secondary-rgb), 0.05);">
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                            <MudText Typo="Typo.caption" Class="font-weight-bold">Session Sync</MudText>
+                            <MudText Typo="Typo.caption">@_sessionSyncProgress.Percentage.ToString("F0")%</MudText>
+                        </MudStack>
+                        <MudProgressLinear Color="Color.Secondary" Value="@_sessionSyncProgress.Percentage" Class="my-2" Striped="true" Size="Size.Medium" />
+                        <MudText Typo="Typo.caption" Class="d-block mt-1">@_sessionSyncProgress.Message</MudText>
+                     </MudPaper>
+                 }
+                 else
+                 {
+                     <MudButton Variant="Variant.Filled" 
+                               Color="Color.Secondary" 
+                               StartIcon="@Icons.Material.Filled.Sync"
+                               OnClick="SyncAllSessions"
+                               FullWidth="true"
+                               Class="rounded-lg py-3">
+                        Sync Sessions Now
+                    </MudButton>
+                 }
+
+                 @if (PlatformProvider.IsMobile)
+                 {
+                     @if (_isDatasetSyncing)
+                     {
+                         <MudPaper Class="pa-3 rounded-lg mt-2" Outlined="true" Style="background: rgba(var(--mud-palette-primary-rgb), 0.05);">
+                            <MudText Typo="Typo.caption" Class="font-weight-bold d-block mb-1">Dataset Export Sync</MudText>
+                            <MudProgressLinear Color="Color.Primary" Value="@_datasetSyncProgress.Percentage" Class="my-2" Striped="true" Size="Size.Medium" />
+                            <MudText Typo="Typo.caption">@_datasetSyncProgress.Message</MudText>
+                         </MudPaper>
+                     }
+                     else
+                     {
+                         <MudButton Variant="Variant.Filled" 
+                                   Color="Color.Primary" 
+                                   StartIcon="@Icons.Material.Filled.CloudUpload"
+                                   OnClick="SyncDatasets"
+                                   FullWidth="true"
+                                   Class="rounded-lg py-3">
+                            Sync Processed Datasets
+                        </MudButton>
+                     }
+                 }
+             </div>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info" Class="mt-4 rounded-lg">Sign in to enable cloud synchronization features.</MudAlert>
+        }
+    </MudPaper>
+
+    <MudText Typo="Typo.caption" Align="Align.Center" Class="d-block mt-4 mb-8" Style="opacity: 0.5;">
+        Gold Arrow Tracker v1.0.0-beta<br/>
+        Platform: @PlatformProvider.PlatformName
+    </MudText>
+</MudContainer>

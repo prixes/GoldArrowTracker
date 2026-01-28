@@ -414,4 +414,31 @@ public class ImageProcessingService : IPlatformImageService
     {
         return await ResizeImageAsync(imageBytes, maxDimension, quality, null);
     }
+
+    public async Task<byte[]> LoadImageBytesAsync(string path, Guid? sessionId = null)
+    {
+        try
+        {
+            if (System.IO.File.Exists(path))
+            {
+                return await System.IO.File.ReadAllBytesAsync(path);
+            }
+        }
+        catch { }
+        return Array.Empty<byte>();
+    }
+    public async Task<string> GetImageDisplaySourceAsync(byte[] imageBytes, TargetAnalysisResult? analysisResult = null)
+    {
+        // On Mobile, we resize to 1024 for display and optionally burn in detections
+        // to save memory and avoid complex canvas logic in simple views.
+        var displayBytes = await ResizeImageAsync(imageBytes, 1024, 80);
+        
+        if (analysisResult != null)
+        {
+            var base64 = await DrawDetectionsOnImageAsync(displayBytes, analysisResult, null, null);
+            return $"data:image/jpeg;base64,{base64}";
+        }
+        
+        return $"data:image/jpeg;base64,{ImageToBase64(displayBytes)}";
+    }
 }

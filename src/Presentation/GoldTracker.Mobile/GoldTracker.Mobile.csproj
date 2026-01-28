@@ -40,9 +40,9 @@
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0-android|AnyCPU'">
-      <EmbedAssembliesIntoApk>False</EmbedAssembliesIntoApk>
-      <!-- EmbedAssemblies just for local device use !!! -->
-      <AndroidUseFastDeployment>True</AndroidUseFastDeployment>
+      <EmbedAssembliesIntoApk>True</EmbedAssembliesIntoApk>
+      <!-- Disable FastDev to avoid startup lag and "failed to load bundled assembly" errors -->
+      <AndroidUseFastDeployment>False</AndroidUseFastDeployment>
       <AndroidEnableSGenConcurrent>True</AndroidEnableSGenConcurrent>
     </PropertyGroup>
     
@@ -105,6 +105,9 @@
         </Compile>
         <Compile Update="Components\Pages\DatasetCreation.razor.cs">
             <DependentUpon>DatasetCreation.razor</DependentUpon>
+        </Compile>
+        <Compile Update="Components\Pages\Settings.razor.cs">
+            <DependentUpon>Settings.razor</DependentUpon>
         </Compile>
         <Content Update="Components\Layout\MainLayout.razor.css">
             <DependentUpon>MainLayout.razor</DependentUpon>

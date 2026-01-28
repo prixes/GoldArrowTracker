@@ -15,6 +15,7 @@ namespace GoldTracker.Shared.UI.Components.Pages.Sessions
         [Inject] private ISnackbar Snackbar { get; set; } = default!;
         [Inject] private IPlatformImageService ImageProcessingService { get; set; } = default!;
         [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+        [Inject] private IPlatformProvider PlatformProvider { get; set; } = default!;
         [Inject] private IDialogService DialogService { get; set; } = default!;
 
         [Parameter] public Guid SessionId { get; set; }
@@ -23,7 +24,7 @@ namespace GoldTracker.Shared.UI.Components.Pages.Sessions
         private Session? _session;
         private SessionEnd? _end;
         private bool _isLoading = true;
-        private string _annotatedImageBase64 = string.Empty;
+        private string _imageSrc = string.Empty;
         private ElementReference _photoImageElement;
         private ElementReference _photoCanvasElement;
         private DotNetObjectReference<SessionEndDetail>? _dotNetObjectReference;
@@ -38,7 +39,7 @@ namespace GoldTracker.Shared.UI.Components.Pages.Sessions
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
-            if (!string.IsNullOrEmpty(_annotatedImageBase64) && !_isResultsAnnotatorLoaded)
+            if (!string.IsNullOrEmpty(_imageSrc) && !_isResultsAnnotatorLoaded)
             {
                 // Small delay to ensure image is rendered/sized
                 await Task.Delay(300);
@@ -47,38 +48,36 @@ namespace GoldTracker.Shared.UI.Components.Pages.Sessions
                 _isResultsAnnotatorLoaded = true;
                 _dotNetObjectReference ??= DotNetObjectReference.Create(this);
                 // Use standard init which supports magnifier/zoom
-                await JSRuntime.InvokeVoidAsync("annotator.init", _photoCanvasElement, _photoImageElement, _dotNetObjectReference, true, false);
+                // showBoxes=true on Detail view so we see the red boxes from the canvas instead of burned-in
+                await JSRuntime.InvokeVoidAsync("annotator.init", _photoCanvasElement, _photoImageElement, _dotNetObjectReference, true, true);
                 
-                // Load boxes (hidden) to enable magnifier on detections
+                // Load boxes to display them
                 if (_end != null)
                 {
                     var boxesForJs = _end.Arrows.Select(a => {
                         if (a.Detection == null) return null;
-                        var halfW = a.Detection.Radius;
+                        var halfR = a.Detection.Radius;
                         return new {
-                            startX = (double)(a.Detection.CenterX - halfW) / _imgWidth,
-                            startY = (double)(a.Detection.CenterY - halfW) / _imgHeight,
-                            endX = (double)(a.Detection.CenterX + halfW) / _imgWidth,
-                            endY = (double)(a.Detection.CenterY + halfW) / _imgHeight,
+                            startX = (double)(a.Detection.CenterX - halfR) / _imgWidth,
+                            startY = (double)(a.Detection.CenterY - halfR) / _imgHeight,
+                            endX = (double)(a.Detection.CenterX + halfR) / _imgWidth,
+                            endY = (double)(a.Detection.CenterY + halfR) / _imgHeight,
                             label = a.Points == 100 ? "X" : a.Points.ToString(),
                             color = GetArrowHexColor(a.Points),
-                            hidden = true // Hide from main view, show in magnifier
+                            hidden = false
                         };
                     }).ToList();
 
-                    // Add target face box to allow tapping anywhere to zoom
                     if (_end.TargetRadius > 0)
                     {
-                        var trX = _end.TargetRadius;
-                        var trY = _end.TargetRadiusY > 0 ? _end.TargetRadiusY : _end.TargetRadius;
                         boxesForJs.Add(new {
-                            startX = (double)(_end.TargetCenterX - trX) / _imgWidth,
-                            startY = (double)(_end.TargetCenterY - trY) / _imgHeight,
-                            endX = (double)(_end.TargetCenterX + trX) / _imgWidth,
-                            endY = (double)(_end.TargetCenterY + trY) / _imgHeight,
+                            startX = (double)(_end.TargetCenterX - _end.TargetRadius) / _imgWidth,
+                            startY = (double)(_end.TargetCenterY - (_end.TargetRadiusY > 0 ? _end.TargetRadiusY : _end.TargetRadius)) / _imgHeight,
+                            endX = (double)(_end.TargetCenterX + _end.TargetRadius) / _imgWidth,
+                            endY = (double)(_end.TargetCenterY + (_end.TargetRadiusY > 0 ? _end.TargetRadiusY : _end.TargetRadius)) / _imgHeight,
                             label = "target",
-                            color = "#2196F3",
-                            hidden = true // Hide border but allow selection
+                            color = "#FF4081",
+                            hidden = false
                         });
                     }
 
@@ -116,17 +115,15 @@ namespace GoldTracker.Shared.UI.Components.Pages.Sessions
                 {
                     _end = _session.Ends.FirstOrDefault(e => e.Index == EndIndex);
                     
-                    if (_end != null && !string.IsNullOrEmpty(_end.ImagePath) && File.Exists(_end.ImagePath))
+                    if (_end != null && !string.IsNullOrEmpty(_end.ImagePath))
                     {
-                        var rawBytes = await File.ReadAllBytesAsync(_end.ImagePath);
-                        var dims = await ImageProcessingService.GetImageDimensionsAsync(rawBytes);
+                        var rawBytes = await ImageProcessingService.LoadImageBytesAsync(_end.ImagePath, SessionId);
+                        if (rawBytes.Length > 0)
+                        {
+                            var dims = await ImageProcessingService.GetImageDimensionsAsync(rawBytes);
                         _imgWidth = dims.Width;
                         _imgHeight = dims.Height;
 
-                        // Resize for display
-                        var displayBytes = await ImageProcessingService.ResizeImageAsync(rawBytes, 1024, 80);
-                        
-                        // Reconstruct analysis result for drawing
                         var analysisResult = new TargetAnalysisResult
                         {
                             Status = AnalysisStatus.Success,
@@ -134,59 +131,17 @@ namespace GoldTracker.Shared.UI.Components.Pages.Sessions
                             TargetCenterY = _end.TargetCenterY,
                             TargetRadius = _end.TargetRadius,
                             TargetRadiusY = _end.TargetRadiusY,
-                            Detections = new List<ObjectDetectionResult>(),
-                            ArrowScores = _end.Arrows.Select(a => a.Detection != null ? new ArrowScore
-                            {
-                                Points = a.Points,
-                                Ring = a.Ring,
-                                DistanceFromCenter = a.DistanceFromCenter,
-                                Detection = new ArrowDetection
-                                {
-                                    CenterX = a.Detection.CenterX,
-                                    CenterY = a.Detection.CenterY,
-                                    Confidence = a.Detection.Confidence,
-                                    Radius = a.Detection.Radius
-                                }
-                            } : null).Where(s => s != null).ToList()!
+                            Detections = _end.AllDetections?.ToList() ?? new List<ObjectDetectionResult>()
                         };
 
-                        // Use persisted detections if available (supports multi-target), otherwise reconstruct
-                        if (_end.AllDetections != null && _end.AllDetections.Any())
-                        {
-                            analysisResult.Detections = _end.AllDetections.ToList();
-                        }
-                        else
-                        {
-                            // Legacy fallback: reconstruct from arrow scores + single target
-                            analysisResult.Detections = _end.Arrows.Select(a => a.Detection != null ? new ObjectDetectionResult
-                            {
-                                ClassId = (a.Points == 10 || a.Points == 100) ? 11 : a.Points,
-                                ClassName = a.Points == 100 ? "X" : a.Points.ToString(),
-                                Confidence = a.Detection.Confidence,
-                                X = a.Detection.CenterX,
-                                Y = a.Detection.CenterY,
-                                Width = a.Detection.Radius * 2,
-                                Height = a.Detection.Radius * 2
-                            } : null).Where(d => d != null).ToList()!;
-                            
-                            if (_end.TargetRadius > 0)
-                            {
-                                analysisResult.Detections.Add(new ObjectDetectionResult
-                                {
-                                    ClassId = 10,
-                                    ClassName = "target",
-                                    Confidence = 1.0f,
-                                    X = _end.TargetCenterX,
-                                    Y = _end.TargetCenterY,
-                                    Width = _end.TargetRadius * 2,
-                                    Height = (_end.TargetRadiusY > 0 ? _end.TargetRadiusY : _end.TargetRadius) * 2
-                                });
-                            }
-                        }
-
-                        _annotatedImageBase64 = await ImageProcessingService.DrawDetectionsOnImageAsync(displayBytes, analysisResult, _imgWidth, _imgHeight);
+                        _imageSrc = await ImageProcessingService.GetImageDisplaySourceAsync(rawBytes, analysisResult);
                     }
                 }
+            }
+        }
+        catch (Exception ex)
+            {
+                Snackbar.Add($"Error loading end: {ex.Message}", Severity.Error);
             }
             finally
             {
@@ -281,19 +236,7 @@ namespace GoldTracker.Shared.UI.Components.Pages.Sessions
             };
         }
 
-        private string GetImageSrc(string path)
-        {
-            try
-            {
-                if (File.Exists(path))
-                {
-                    var bytes = File.ReadAllBytes(path);
-                    return $"data:image/jpeg;base64,{Convert.ToBase64String(bytes)}";
-                }
-            }
-            catch { }
-            return "";
-        }
+
 
         private MudBlazor.Color GetArrowColor(int points)
         {

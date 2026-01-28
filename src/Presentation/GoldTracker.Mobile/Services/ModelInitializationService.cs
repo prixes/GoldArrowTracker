@@ -8,15 +8,20 @@ public class ModelInitializationService
     public string? ModelPath { get; private set; }
     public bool IsInitialized { get; private set; }
 
+    private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
+
     public async Task InitializeAsync()
     {
         if (IsInitialized) return;
 
-        try 
+        await _semaphore.WaitAsync();
+        try
         {
+            if (IsInitialized) return;
+
             // Run in parallel
             var configTask = ObjectDetectionConfig.LoadFromJsonAsync("Archery.Shared.Configurations.object_detection_config.json");
-            var deployTask = Task.Run(() => ObjectDetectionModelDeploymentService.EnsureModelDeployed());
+            var deployTask = ObjectDetectionModelDeploymentService.EnsureModelDeployedAsync(); 
 
             await Task.WhenAll(configTask, deployTask);
 
@@ -30,6 +35,10 @@ public class ModelInitializationService
         {
              System.Diagnostics.Debug.WriteLine($"[ModelInitializationService] Failed: {ex.Message}");
              throw;
+        }
+        finally
+        {
+            _semaphore.Release();
         }
     }
 }

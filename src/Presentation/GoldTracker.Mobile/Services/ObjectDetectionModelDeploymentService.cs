@@ -15,7 +15,7 @@ public class ObjectDetectionModelDeploymentService
     /// Ensures Object Detection model is extracted to app data directory.
     /// Returns the path to the extracted model file.
     /// </summary>
-    public static string EnsureModelDeployed()
+    public static async Task<string> EnsureModelDeployedAsync()
     {
         try
         {
@@ -23,7 +23,6 @@ public class ObjectDetectionModelDeploymentService
             var modelPath = Path.Combine(appDataPath, OutputFileName);
             
             System.Diagnostics.Debug.WriteLine($"[ObjectDetectionModelDeploymentService] Model target path: {modelPath}");
-            System.Diagnostics.Debug.WriteLine($"[ObjectDetectionModelDeploymentService] Model already exists: {File.Exists(modelPath)}");
             
             // If model already extracted, return path
             if (File.Exists(modelPath))
@@ -36,27 +35,25 @@ public class ObjectDetectionModelDeploymentService
             // Extract embedded resource
             System.Diagnostics.Debug.WriteLine($"[ObjectDetectionModelDeploymentService] Extracting embedded resource: {EmbeddedResourceName}");
             
-            var assembly = typeof(App).Assembly;
+            var assembly = typeof(ObjectDetectionModelDeploymentService).Assembly;
             using (var resourceStream = assembly.GetManifestResourceStream(EmbeddedResourceName))
             {
                 if (resourceStream == null)
                 {
                     System.Diagnostics.Debug.WriteLine($"[ObjectDetectionModelDeploymentService] ? Embedded resource not found: {EmbeddedResourceName}");
-                    System.Diagnostics.Debug.WriteLine($"[ObjectDetectionModelDeploymentService] Available resources: {string.Join(", ", assembly.GetManifestResourceNames().Where(n => n.Contains("object", StringComparison.OrdinalIgnoreCase)))}");
-                    throw new InvalidOperationException($"Embedded resource not found: {EmbeddedResourceName}"); // Throw exception instead of null
+                    throw new InvalidOperationException($"Embedded resource not found: {EmbeddedResourceName}");
                 }
                 
                 System.Diagnostics.Debug.WriteLine($"[ObjectDetectionModelDeploymentService] Resource found. Size: {resourceStream.Length} bytes");
                 
-                // Create output file
-                using (var fileStream = File.Create(modelPath))
+                // Create output file asynchronously
+                using (var fileStream = new FileStream(modelPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true))
                 {
-                    resourceStream.CopyTo(fileStream);
+                    await resourceStream.CopyToAsync(fileStream);
                 }
                 
                 var extractedInfo = new FileInfo(modelPath);
                 System.Diagnostics.Debug.WriteLine($"[ObjectDetectionModelDeploymentService] ? Model extracted successfully ({extractedInfo.Length} bytes)");
-                System.Diagnostics.Debug.WriteLine($"[ObjectDetectionModelDeploymentService] ? Model path: {modelPath}");
                 
                 return modelPath;
             }
@@ -64,8 +61,7 @@ public class ObjectDetectionModelDeploymentService
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[ObjectDetectionModelDeploymentService] ? Error deploying model: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"[ObjectDetectionModelDeploymentService] ? Stack: {ex.StackTrace}");
-            throw new InvalidOperationException($"Error deploying Object Detection model: {ex.Message}", ex); // Throw exception instead of null
+            throw new InvalidOperationException($"Error deploying Object Detection model: {ex.Message}", ex);
         }
     }
     
@@ -75,10 +71,6 @@ public class ObjectDetectionModelDeploymentService
     public static string GetModelPath()
     {
         var modelPath = Path.Combine(FileSystem.AppDataDirectory, OutputFileName);
-        if (!File.Exists(modelPath))
-        {
-            throw new InvalidOperationException($"Object Detection model not found at expected path: {modelPath}. Ensure it has been deployed.");
-        }
         return modelPath;
     }
 }

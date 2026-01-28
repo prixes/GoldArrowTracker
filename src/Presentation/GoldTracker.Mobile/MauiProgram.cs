@@ -6,6 +6,7 @@ using GoldTracker.Mobile.Services.Sessions;
 using Archery.Shared.Models;
 using Archery.Shared.Services;
 
+using GoldTracker.Shared.UI;
 using GoldTracker.Shared.UI.Services;
 using GoldTracker.Shared.UI.Services.Abstractions;
 
@@ -56,11 +57,8 @@ namespace GoldTracker.Mobile
                 var initService = sp.GetRequiredService<ModelInitializationService>();
                 if (!initService.IsInitialized || initService.Config == null)
                 {
-                     // Fallback or blocking wait if absolutely necessary (but we try to avoid this)
-                     // Ideally this service shouldn't be resolved until init is done.
-                     // For now, let's block sparingly if accessed too early, or return default.
-                     System.Diagnostics.Debug.WriteLine("[MauiProgram] Warning: Accessing Config before async init. Blocking...");
-                     initService.InitializeAsync().Wait(); 
+                     // Return null if not ready, consumers should handle this or wait for init
+                     return null!; 
                 }
                 return initService.Config!;
             });
@@ -71,10 +69,10 @@ namespace GoldTracker.Mobile
                 var initService = sp.GetRequiredService<ModelInitializationService>();
                 var preprocessor = sp.GetRequiredService<IImagePreprocessor>();
                 
-                if (!initService.IsInitialized)
+                if (!initService.IsInitialized || string.IsNullOrEmpty(initService.ModelPath))
                 {
-                    System.Diagnostics.Debug.WriteLine("[MauiProgram] Warning: Accessing ObjDetectService before async init. Blocking...");
-                    initService.InitializeAsync().Wait();
+                    // Return null if not ready
+                    return null!;
                 }
 
                 return new ObjectDetectionService(initService.ModelPath!, initService.Config!, preprocessor);
@@ -98,6 +96,9 @@ namespace GoldTracker.Mobile
             builder.Services.AddSingleton<IServerAuthService, ServerAuthService>();
             builder.Services.AddSingleton<IDatasetSyncService, DatasetSyncService>();
             builder.Services.AddSingleton<IPathService, PathService>();
+            builder.Services.AddSingleton<IPreferenceService, MauiPreferenceService>();
+            builder.Services.AddSingleton<IPlatformProvider, MauiPlatformProvider>();
+            builder.Services.AddSingleton<BackgroundSyncService>();
             
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();
@@ -105,7 +106,27 @@ namespace GoldTracker.Mobile
 #endif
 
             System.Diagnostics.Debug.WriteLine("[MauiProgram.CreateMauiApp] ✓ MauiApp created successfully");
-            return builder.Build();
+            var app = builder.Build();
+
+            // Task-based initialization to avoid blocking the main thread
+            Task.Run(async () => {
+                try {
+                    // Small delay to let the UI finish launching and initial rendering
+                    await Task.Delay(1000);
+
+                    var initService = app.Services.GetRequiredService<ModelInitializationService>();
+                    await initService.InitializeAsync();
+                    
+                    // Trigger BackgroundSyncService instantiation so it starts listening to events
+                    app.Services.GetRequiredService<BackgroundSyncService>();
+                    
+                    System.Diagnostics.Debug.WriteLine("[MauiProgram] Background services initialized.");
+                } catch (Exception ex) {
+                    System.Diagnostics.Debug.WriteLine($"[MauiProgram] Background Init Error: {ex.Message}");
+                }
+            });
+
+            return app;
         }
     }
 }

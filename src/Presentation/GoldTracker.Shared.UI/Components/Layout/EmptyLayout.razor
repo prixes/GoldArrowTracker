@@ -1,0 +1,19 @@
+@inherits LayoutComponentBase
+@using MudBlazor
+
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudMainContent Class="height-100">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+<style>
+    .height-100 {
+        height: 100vh;
+    }
+</style>

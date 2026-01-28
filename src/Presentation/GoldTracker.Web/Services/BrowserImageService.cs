@@ -17,13 +17,17 @@ namespace GoldTracker.Web.Services;
 /// </summary>
 public class BrowserImageService : IPlatformImageService
 {
+    private readonly HttpClient _httpClient;
+    private readonly IServerAuthService _authService;
     private readonly ITargetScoringService _targetScoringService;
     private readonly ObjectDetectionConfig _objectDetectionConfig;
 
-    public BrowserImageService(ITargetScoringService targetScoringService, ObjectDetectionConfig objectDetectionConfig)
+    public BrowserImageService(ITargetScoringService targetScoringService, ObjectDetectionConfig objectDetectionConfig, HttpClient httpClient, IServerAuthService authService)
     {
         _targetScoringService = targetScoringService;
         _objectDetectionConfig = objectDetectionConfig;
+        _httpClient = httpClient;
+        _authService = authService;
     }
 
     public bool IsModelAvailable => _targetScoringService != null;
@@ -180,5 +184,36 @@ public class BrowserImageService : IPlatformImageService
                 return Convert.ToBase64String(imageBytes);
             }
         });
+    }
+
+    public async Task<byte[]> LoadImageBytesAsync(string path, Guid? sessionId = null)
+    {
+        if (sessionId == null) return Array.Empty<byte>();
+
+        try
+        {
+            var fileName = System.IO.Path.GetFileName(path);
+            var url = $"/api/sessions/{sessionId}/images/{System.Net.WebUtility.UrlEncode(fileName)}";
+            
+            if (_authService.IsAuthenticated)
+            {
+                var token = await _authService.GetAccessTokenAsync();
+                _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            }
+
+            return await _httpClient.GetByteArrayAsync(url);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading image from server: {ex.Message}");
+            return Array.Empty<byte>();
+        }
+    }
+
+    public async Task<string> GetImageDisplaySourceAsync(byte[] imageBytes, TargetAnalysisResult? analysisResult = null)
+    {
+        // On Web, burning in detections via ImageSharp (WASM) is too slow.
+        // We return the raw image and use the native browser canvas for overlays.
+        return await Task.FromResult($"data:image/jpeg;base64,{ImageToBase64(imageBytes)}");
     }
 }

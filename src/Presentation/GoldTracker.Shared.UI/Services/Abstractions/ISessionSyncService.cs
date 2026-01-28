@@ -1,7 +1,9 @@
 using Archery.Shared.Models;
 using GoldTracker.Shared.UI.Models;
+using System.Threading.Tasks;
+using System;
 
-namespace GoldTracker.Mobile.Services.Sessions;
+namespace GoldTracker.Shared.UI.Services.Abstractions;
 
 public interface ISessionSyncService
 {

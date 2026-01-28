@@ -4,7 +4,7 @@
     "http": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "launchBrowser": true,
+      "launchBrowser": false,
       "launchUrl": "todos",
       "applicationUrl": "http://0.0.0.0:15777",
       "environmentVariables": {

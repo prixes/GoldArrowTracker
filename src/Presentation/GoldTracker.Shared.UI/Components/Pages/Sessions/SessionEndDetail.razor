@@ -23,10 +23,10 @@
             </MudStack>
         </MudStack>
 
-        <MudPaper Class="pa-0 mb-4 mt-2" Elevation="0" Style="border: 1px solid var(--mud-palette-lines-default); border-radius: 12px; overflow: hidden; background: #f5f5f5; aspect-ratio: 1; position: relative;">
-            <img @ref="_photoImageElement" src="@($"data:image/jpeg;base64,{_annotatedImageBase64}")" alt="End Image" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;" />
-            <canvas @ref="_photoCanvasElement" id="photo-results-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: zoom-in; touch-action: none;"></canvas>
-        </MudPaper>
+        <div style="position: relative; display: grid; place-items: center; background: #f5f5f5; border-radius: 12px; overflow: hidden; border: 1px solid var(--mud-palette-lines-default); min-height: 200px;" class="mb-4 mt-2">
+            <img @ref="_photoImageElement" src="@_imageSrc" alt="End Image" style="max-width: 100%; max-height: 75vh; grid-area: 1/1; display: block;" />
+            <canvas @ref="_photoCanvasElement" id="photo-results-canvas" style="grid-area: 1/1; width: 100%; height: 100%; cursor: zoom-in; touch-action: none;"></canvas>
+        </div>
 
         <style>
             .mud-tabs-control-next, .mud-tabs-control-prev { display: none !important; }

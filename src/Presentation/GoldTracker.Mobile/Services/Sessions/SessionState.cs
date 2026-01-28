@@ -19,8 +19,7 @@ namespace GoldTracker.Mobile.Services.Sessions
 
         public async Task InitializeAsync()
         {
-            var sessions = await _sessionService.GetSessionsAsync();
-            var unfinishedSession = sessions.FirstOrDefault(s => s.EndTime == null);
+            var unfinishedSession = await _sessionService.GetUnfinishedSessionAsync();
             if (unfinishedSession != null)
             {
                 CurrentSession = unfinishedSession;

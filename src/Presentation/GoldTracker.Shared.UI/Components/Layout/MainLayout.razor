@@ -1,18 +1,53 @@
 @inherits LayoutComponentBase
-@using MudBlazor
-<MudThemeProvider />
+@namespace GoldTracker.Shared.UI.Components.Layout
+
+<MudThemeProvider @ref="_mudThemeProvider" Theme="_theme" IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-
 <div class="page">
-    <main>
+    <MudAppBar Elevation="0" Color="Color.Dark" Fixed="true" Dense="true" Style="padding-top: env(safe-area-inset-top); background: rgba(30,30,40,0.95); backdrop-filter: blur(5px); border-bottom: 1px solid rgba(255,255,255,0.1);">
+        <MudText Typo="Typo.h6" Color="Color.Inherit" Style="font-weight: 700; letter-spacing: 0.5px;">Gold Arrow Tracker</MudText>
+        <MudSpacer />
+        @if (AuthService.CurrentUser != null)
+        {
+             <MudMenu ActivationEvent="@MouseEvent.MouseOver" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                <ActivatorContent>
+                     @if (!string.IsNullOrEmpty(AuthService.CurrentUser.PictureUrl))
+                     {
+                        <MudAvatar Size="Size.Small" Style="overflow: hidden;">
+                            <img src="@AuthService.CurrentUser.PictureUrl" style="width: 100%; height: 100%; object-fit: cover;" referrerpolicy="no-referrer" />
+                        </MudAvatar>
+                     }
+                     else
+                     {
+                        <MudAvatar Color="Color.Primary" Size="Size.Small">@AuthService.CurrentUser.Name.FirstOrDefault()</MudAvatar>
+                     }
+                </ActivatorContent>
+                <ChildContent>
+                    <MudMenuItem Disabled="true">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@AuthService.CurrentUser.Email</MudText>
+                    </MudMenuItem>
+                    <MudDivider />
+                    <MudMenuItem OnClick="ToggleDarkMode">
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" Class="mr-2"/> 
+                            @(_isDarkMode ? "Light Mode" : "Dark Mode")
+                        </div>
+                    </MudMenuItem>
+                    <MudDivider />
+                    <MudMenuItem OnClick="LogoutAsync" Icon="@Icons.Material.Filled.Logout">Sign Out</MudMenuItem>
+                </ChildContent>
+            </MudMenu>
+        }
+    </MudAppBar>
+
+    <main style="padding-top: calc(48px + env(safe-area-inset-top));">
         <article class="content">
             @Body
         </article>
     </main>
-
 </div>
 <div class="bottom-nav bottom-nav-background-wrapper">
     <NavMenu />
