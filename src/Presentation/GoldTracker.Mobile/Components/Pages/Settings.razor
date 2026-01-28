@@ -36,39 +36,46 @@
         <MudText Typo="Typo.body2" Class="mt-2">
             Status: @(AuthService.IsAuthenticated ? "Connected" : "Offline")
         </MudText>
-        @if (AuthService.IsAuthenticated)
+@using GoldTracker.Shared.UI.Models
+@if (AuthService.IsAuthenticated)
         {
-             <MudButton Variant="Variant.Filled" 
-                       Color="Color.Secondary" 
-                       Class="mt-4"
-                       Disabled="@_isSyncing"
-                       OnClick="SyncAllSessions">
-                @if (_isSyncing)
-                {
-                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
-                    <MudText Class="ms-2">Syncing...</MudText>
-                }
-                else
-                {
-                     <MudText>Sync Sessions (Up/Down)</MudText>
-                }
-            </MudButton>
+             <div class="d-flex flex-column gap-2 mt-4">
+                 @if (_isSyncing)
+                 {
+                     <MudPaper Class="pa-3 outlined" Outlined="true">
+                        <MudText Typo="Typo.caption" Class="mb-1">Session Sync</MudText>
+                        <MudProgressLinear Color="Color.Secondary" Value="@_sessionSyncProgress.Percentage" Class="my-2" Striped="true" Size="Size.Large" />
+                        <MudText Typo="Typo.caption">@_sessionSyncProgress.Message</MudText>
+                     </MudPaper>
+                 }
+                 else
+                 {
+                     <MudButton Variant="Variant.Filled" 
+                               Color="Color.Secondary" 
+                               StartIcon="@Icons.Material.Filled.Sync"
+                               OnClick="SyncAllSessions">
+                        Sync Sessions (Up/Down)
+                    </MudButton>
+                 }
 
-             <MudButton Variant="Variant.Filled" 
-                       Color="Color.Primary" 
-                       Class="mt-2"
-                       Disabled="@_isDatasetSyncing"
-                       OnClick="SyncDatasets">
-                @if (_isDatasetSyncing)
-                {
-                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
-                    <MudText Class="ms-2">Syncing...</MudText>
-                }
-                else
-                {
-                    <MudText>Sync Processed Datasets (Export)</MudText>
-                }
-            </MudButton>
+                 @if (_isDatasetSyncing)
+                 {
+                     <MudPaper Class="pa-3 outlined mt-2" Outlined="true">
+                        <MudText Typo="Typo.caption" Class="mb-1">Dataset Export Sync</MudText>
+                        <MudProgressLinear Color="Color.Primary" Value="@_datasetSyncProgress.Percentage" Class="my-2" Striped="true" Size="Size.Large" />
+                        <MudText Typo="Typo.caption">@_datasetSyncProgress.Message</MudText>
+                     </MudPaper>
+                 }
+                 else
+                 {
+                     <MudButton Variant="Variant.Filled" 
+                               Color="Color.Primary" 
+                               StartIcon="@Icons.Material.Filled.CloudUpload"
+                               OnClick="SyncDatasets">
+                        Sync Processed Datasets (Export)
+                    </MudButton>
+                 }
+             </div>
         }
     </MudPaper>
 </MudContainer>
@@ -86,15 +93,28 @@
 @code {
     private bool _isSyncing = false;
     private bool _isDatasetSyncing = false;
+    
+    // UI State for Progress
+    private SyncProgress _sessionSyncProgress = SyncProgress.Empty;
+    private SyncProgress _datasetSyncProgress = SyncProgress.Empty;
 
     private async Task SyncDatasets()
     {
         if (_isDatasetSyncing) return;
         _isDatasetSyncing = true;
+        _datasetSyncProgress = new SyncProgress(0, "Starting export sync...");
+        StateHasChanged();
         
         try
         {
-            var count = await DatasetSyncService.SyncExportedDatasetsAsync();
+            var p = new Progress<SyncProgress>(value => 
+            {
+                _datasetSyncProgress = value;
+                StateHasChanged();
+            });
+
+            var count = await DatasetSyncService.SyncExportedDatasetsAsync(p);
+            
             if (count > 0)
                 Snackbar.Add($"Synced {count} dataset files successfully!", Severity.Success);
             else
@@ -107,6 +127,8 @@
         finally
         {
             _isDatasetSyncing = false;
+            _datasetSyncProgress = SyncProgress.Empty;
+             StateHasChanged();
         }
     }
 
@@ -114,26 +136,46 @@
     {
         if (_isSyncing) return;
         _isSyncing = true;
+        _sessionSyncProgress = new SyncProgress(0, "Starting session sync...");
+        StateHasChanged();
         
         try
         {
+            IProgress<SyncProgress> progress = new Progress<SyncProgress>(value =>
+            {
+                _sessionSyncProgress = value;
+                StateHasChanged();
+            });
+
+            progress.Report(new SyncProgress(0, "Analyzing local sessions..."));
+
             // 1. Upload Local Sessions
             var sessions = await SessionService.GetSessionsAsync();
             int successCount = 0;
+            int total = sessions.Count;
+            int current = 0;
             
             foreach(var session in sessions)
             {
-                 var success = await SessionSyncService.SyncSessionAsync(session);
+                 current++;
+                 // We don't want to overwrite the INNER progress of the image upload, 
+                 // but we want to show overall session progress.
+                 // Ideally we'd compose them, but for now let's just let the inner one report.
+                 
+                 // Create a sub-progress that scales to this session's slot? Too complex.
+                 // Just pass the main progress, the user will see "Uploading image X/Y" flashing.
+                 
+                 var success = await SessionSyncService.SyncSessionAsync(session, progress);
                  if(success) successCount++;
             }
             
             // 2. Download Remote Sessions
-            int importedCount = await SessionSyncService.SyncFromServerAsync();
+            int importedCount = await SessionSyncService.SyncFromServerAsync(progress);
 
             if (successCount > 0 || importedCount > 0)
                 Snackbar.Add($"Synced! Uploaded: {successCount}, Downloaded: {importedCount}", Severity.Success);
             else if (sessions.Count > 0)
-                Snackbar.Add("All sessions already synced.", Severity.Success);
+                Snackbar.Add("All sessions synced.", Severity.Success);
             else
                 Snackbar.Add("No sessions to sync.", Severity.Info);
         }
@@ -144,6 +186,8 @@
         finally
         {
             _isSyncing = false;
+            _sessionSyncProgress = SyncProgress.Empty;
+            StateHasChanged();
         }
     }
 

@@ -4,6 +4,8 @@ using Archery.Shared.Services;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Configuration;
+using System.Collections.Concurrent;
+using GoldTracker.Shared.UI.Models;
 
 namespace GoldTracker.Mobile.Services.Sessions
 {
@@ -92,7 +94,7 @@ namespace GoldTracker.Mobile.Services.Sessions
             }
         }
 
-        public async Task<bool> SyncSessionAsync(Session session)
+        public async Task<bool> SyncSessionAsync(Session session, IProgress<SyncProgress>? progress = null)
         {
             if (!_authService.IsAuthenticated) return false;
             var token = await _authService.GetAccessTokenAsync();
@@ -102,6 +104,8 @@ namespace GoldTracker.Mobile.Services.Sessions
 
             try
             {
+                progress?.Report(new SyncProgress(0, $"Uploading session {session.Id}..."));
+                
                 // 1. Upload Session JSON
                 var response = await _httpClient.PostAsJsonAsync("/api/sessions", session);
                 if (!response.IsSuccessStatusCode) 
@@ -110,10 +114,18 @@ namespace GoldTracker.Mobile.Services.Sessions
                     return false;
                 }
 
-                // 2. Upload Images
-                foreach (var end in session.Ends)
+                // 2. Upload Images (Parallel)
+                var validImages = session.Ends
+                    .Where(e => !string.IsNullOrEmpty(e.ImagePath) && File.Exists(e.ImagePath))
+                    .ToList();
+                
+                int totalImages = validImages.Count;
+                if (totalImages > 0)
                 {
-                    if (!string.IsNullOrEmpty(end.ImagePath) && File.Exists(end.ImagePath))
+                    var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = 4 };
+                    int processedImages = 0;
+
+                    await Parallel.ForEachAsync(validImages, parallelOptions, async (end, ct) => 
                     {
                         var fileName = Path.GetFileName(end.ImagePath);
                         using var content = new MultipartFormDataContent();
@@ -121,13 +133,13 @@ namespace GoldTracker.Mobile.Services.Sessions
                         content.Add(new StreamContent(fileStream), "file", fileName);
 
                         var imgResponse = await _httpClient.PostAsync($"/api/sessions/{session.Id}/images/{fileName}", content);
-                        if (!imgResponse.IsSuccessStatusCode)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Image upload failed: {fileName}");
-                             // Continue uploading other images anyway
-                        }
-                    }
+                        
+                        var current = Interlocked.Increment(ref processedImages);
+                        var percent = (double)current / totalImages * 100;
+                        progress?.Report(new SyncProgress(percent, $"Uploading image {current}/{totalImages}"));
+                    });
                 }
+                
                 return true;
             }
             catch (Exception ex)
@@ -136,7 +148,8 @@ namespace GoldTracker.Mobile.Services.Sessions
                 return false;
             }
         }
-        public async Task<int> SyncFromServerAsync()
+
+        public async Task<int> SyncFromServerAsync(IProgress<SyncProgress>? progress = null)
         {
             if (!_authService.IsAuthenticated) return 0;
             var token = await _authService.GetAccessTokenAsync();
@@ -147,58 +160,72 @@ namespace GoldTracker.Mobile.Services.Sessions
 
             try
             {
+                progress?.Report(new SyncProgress(0, "Fetching session list..."));
+                
                 // 1. Get List of Sessions from Server
-                // Endpoint: GET /api/sessions/
                 var sessions = await _httpClient.GetFromJsonAsync<List<Session>>("/api/sessions");
-                if (sessions == null) return 0;
+                if (sessions == null || sessions.Count == 0) return 0;
 
-                // 2. Process each session
-                foreach (var serverSession in sessions)
+                // 2. Filter new sessions
+                var newSessions = new ConcurrentBag<Session>();
+                foreach(var s in sessions)
                 {
-                    // Check if exists locally
-                    // We assume immutable sessions for now (ID match = same session)
-                    if (await GetSessionAsync(serverSession.Id) != null)
-                    {
-                        continue;
-                    }
+                    if (await GetSessionAsync(s.Id) == null)
+                        newSessions.Add(s);
+                }
 
-                    // 3. Download images for this session
-                    foreach (var end in serverSession.Ends)
+                int totalSessions = newSessions.Count;
+                if (totalSessions == 0) return 0;
+
+                int processedSessions = 0;
+                var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = 3 };
+
+                // 3. Process sessions in parallel
+                await Parallel.ForEachAsync(newSessions, parallelOptions, async (serverSession, ct) =>
+                {
+                    // Update progress
+                    var currentSessIdx = Interlocked.Increment(ref processedSessions);
+                    progress?.Report(new SyncProgress(((double)currentSessIdx / totalSessions * 100), $"Downloading session {currentSessIdx}/{totalSessions}"));
+
+                    // Download images for this session
+                    var imagesToDownload = serverSession.Ends
+                        .Where(e => !string.IsNullOrEmpty(e.ImagePath))
+                        .ToList();
+
+                    if (imagesToDownload.Any())
                     {
-                        if (!string.IsNullOrEmpty(end.ImagePath))
-                        {
-                            var fileName = Path.GetFileName(end.ImagePath);
-                            
-                            // Determine local path (store in AppData)
-                            var localFileName = $"synced_{serverSession.Id}_{fileName}";
-                            var localPath = Path.Combine(FileSystem.AppDataDirectory, localFileName);
-                            
-                            // Download if not exists
-                            if (!File.Exists(localPath))
-                            {
-                                try 
-                                {
-                                    var imgBytes = await _httpClient.GetByteArrayAsync($"/api/sessions/{serverSession.Id}/images/{fileName}");
-                                    await File.WriteAllBytesAsync(localPath, imgBytes);
-                                }
-                                catch (Exception ex)
-                                {
-                                    System.Diagnostics.Debug.WriteLine($"Failed to download image {fileName}: {ex.Message}");
-                                    // Keep existing path? No, it points to nowhere on this device.
-                                    // Maybe set to null or keep it broken?
-                                    // Let's keep the filename but it won't load.
-                                }
-                            }
-                            
-                            // UPDATE the session object with the NEW local path
-                            end.ImagePath = localPath;
-                        }
+                         // Download images in parallel within the session (or sequentially if we want to avoid flooding network)
+                         // Let's do sequential for images within a session to keep it simple, since we parallelize sessions.
+                         foreach(var end in imagesToDownload)
+                         {
+                             var fileName = Path.GetFileName(end.ImagePath);
+                             var localFileName = $"synced_{serverSession.Id}_{fileName}";
+                             var localPath = Path.Combine(FileSystem.AppDataDirectory, localFileName);
+
+                             if (!File.Exists(localPath))
+                             {
+                                 try 
+                                 {
+                                     var imgBytes = await _httpClient.GetByteArrayAsync($"/api/sessions/{serverSession.Id}/images/{fileName}");
+                                     await File.WriteAllBytesAsync(localPath, imgBytes);
+                                     end.ImagePath = localPath; // Update path
+                                 }
+                                 catch 
+                                 { 
+                                     // Ignore failure, maybe placeholder?
+                                 }
+                             }
+                             else
+                             {
+                                 end.ImagePath = localPath;
+                             }
+                         }
                     }
 
                     // 4. Save Session Locally
                     await SaveSessionAsync(serverSession);
-                    importedCount++;
-                }
+                    Interlocked.Increment(ref importedCount);
+                });
             }
             catch (Exception ex)
             {

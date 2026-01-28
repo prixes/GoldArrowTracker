@@ -9,6 +9,19 @@ namespace GoldTracker.Mobile.Services;
 /// </summary>
 public class CameraService : ICameraService
 {
+    private readonly IPathService _pathService;
+
+    public CameraService(IPathService pathService)
+    {
+        _pathService = pathService;
+    }
+
+    // Default constructor for MS DI if not explicitly registered with factory (but we act as interface impl)
+    // Actually we need to update MauiProgram registration to not use simple AddScoped<CameraService>() if we want DI to work automatically,
+    // or just let DI handle it.
+    // MauiProgram currently: builder.Services.AddScoped<CameraService>(); builder.Services.AddScoped<ICameraService>(sp => sp.GetRequiredService<CameraService>());
+    // This works fine if CameraService has a constructor that DI can resolve.
+
     /// <summary>
     /// Captures a photo from the device camera.
     /// </summary>
@@ -34,7 +47,7 @@ public class CameraService : ICameraService
                 return null;
 
             // Copy to app data directory for processing
-            var appDataPath = FileSystem.AppDataDirectory;
+            var appDataPath = _pathService.GetAppDataPath();
             var fileName = $"target_{DateTime.Now:yyyyMMdd_HHmmss}.jpg";
             var localFilePath = Path.Combine(appDataPath, fileName);
 
@@ -76,7 +89,7 @@ public class CameraService : ICameraService
                 return null;
 
             // Copy to app data directory for processing
-            var appDataPath = FileSystem.AppDataDirectory;
+            var appDataPath = _pathService.GetAppDataPath();
             var fileName = $"target_{DateTime.Now:yyyyMMdd_HHmmss}_{Path.GetFileNameWithoutExtension(photo.FileName)}.jpg";
             var localFilePath = Path.Combine(appDataPath, fileName);
 
@@ -119,7 +132,7 @@ public class CameraService : ICameraService
                 return null;
 
             // Copy to app data directory for processing
-            var appDataPath = FileSystem.AppDataDirectory;
+            var appDataPath = _pathService.GetAppDataPath();
             var fileName = $"target_{DateTime.Now:yyyyMMdd_HHmmss}_{Path.GetFileNameWithoutExtension(media.FileName)}.jpg";
             var localFilePath = Path.Combine(appDataPath, fileName);
 
@@ -214,7 +227,7 @@ public class CameraService : ICameraService
     {
         try
         {
-            var appDataPath = FileSystem.AppDataDirectory;
+            var appDataPath = _pathService.GetAppDataPath();
             if (!Directory.Exists(appDataPath))
                 return Enumerable.Empty<string>();
 
@@ -256,22 +269,12 @@ public class CameraService : ICameraService
     /// <summary>
     /// Saves an image to a specified subdirectory in a public folder.
     /// </summary>
-    /// <param name="imageData">The image data as a byte array.</param>
-    /// <param name="fileName">The name of the file to save.</param>
-    /// <param name="subdirectory">The subdirectory to save the file in.</param>
-    /// <returns>The full path to the saved file, or null if saving fails.</returns>
     public async Task<string?> SaveImageAsync(byte[] imageData, string fileName, string subdirectory)
     {
         try
         {
-#if ANDROID
-            var downloadsPath = Android.OS.Environment.GetExternalStoragePublicDirectory(Android.OS.Environment.DirectoryDownloads);
-            var documentsPath = downloadsPath?.AbsolutePath ?? "/storage/emulated/0/Download";
-            var subfolderPath = Path.Combine(documentsPath, subdirectory);
-#else
-            var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            var subfolderPath = Path.Combine(documentsPath, subdirectory);
-#endif
+            var documentsPath = _pathService.GetDownloadsPath();
+            var subfolderPath = Path.Combine(documentsPath, subdirectory); // subdirectory likely "Export/Macro_Model/images"
 
             if (!Directory.Exists(subfolderPath))
             {

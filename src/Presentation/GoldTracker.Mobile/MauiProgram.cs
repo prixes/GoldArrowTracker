@@ -47,42 +47,37 @@ namespace GoldTracker.Mobile
             builder.Services.AddSingleton<IImagePreprocessor, DefaultImagePreprocessor>();
 #endif
 
-            // Register Object Detection Configuration
+            // Register Model Initialization Service
+            builder.Services.AddSingleton<ModelInitializationService>();
+
+            // Register Object Detection Configuration (Proxy)
             builder.Services.AddSingleton(sp => 
             {
-                // Load config synchronously during startup
-                try 
+                var initService = sp.GetRequiredService<ModelInitializationService>();
+                if (!initService.IsInitialized || initService.Config == null)
                 {
-                    return ObjectDetectionConfig.LoadFromJsonAsync("Archery.Shared.Configurations.object_detection_config.json").Result;
+                     // Fallback or blocking wait if absolutely necessary (but we try to avoid this)
+                     // Ideally this service shouldn't be resolved until init is done.
+                     // For now, let's block sparingly if accessed too early, or return default.
+                     System.Diagnostics.Debug.WriteLine("[MauiProgram] Warning: Accessing Config before async init. Blocking...");
+                     initService.InitializeAsync().Wait(); 
                 }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[MauiProgram] Critical Error loading ObjectDetectionConfig: {ex.Message}");
-                    throw;
-                }
+                return initService.Config!;
             });
 
             // Register Object Detection Service
             builder.Services.AddScoped<IObjectDetectionService>(sp => 
             {
-                var config = sp.GetRequiredService<ObjectDetectionConfig>();
+                var initService = sp.GetRequiredService<ModelInitializationService>();
                 var preprocessor = sp.GetRequiredService<IImagePreprocessor>();
                 
-                // Ensure model is deployed
-                string modelPath;
-                try
+                if (!initService.IsInitialized)
                 {
-                    modelPath = ObjectDetectionModelDeploymentService.EnsureModelDeployed();
-                    System.Diagnostics.Debug.WriteLine($"[MauiProgram] Model deployed to: {modelPath}");
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[MauiProgram] Critical Error deploying model: {ex.Message}");
-                    // In a real app we might want to handle this gracefully, but for now throw
-                    throw;
+                    System.Diagnostics.Debug.WriteLine("[MauiProgram] Warning: Accessing ObjDetectService before async init. Blocking...");
+                    initService.InitializeAsync().Wait();
                 }
 
-                return new ObjectDetectionService(modelPath, config, preprocessor);
+                return new ObjectDetectionService(initService.ModelPath!, initService.Config!, preprocessor);
             });
 
             // Register Target Scoring Service
@@ -102,6 +97,7 @@ namespace GoldTracker.Mobile
             builder.Services.AddScoped<IDatasetExportService, DatasetExportService>();
             builder.Services.AddSingleton<IServerAuthService, ServerAuthService>();
             builder.Services.AddSingleton<IDatasetSyncService, DatasetSyncService>();
+            builder.Services.AddSingleton<IPathService, PathService>();
             
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();

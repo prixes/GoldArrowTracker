@@ -1,41 +1,30 @@
-using System;
-using System.IO;
-using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using GoldTracker.Shared.UI.Models;
+using GoldTracker.Shared.UI.Services.Abstractions;
 
 namespace GoldTracker.Mobile.Services.Sessions;
 
 public interface IDatasetSyncService
 {
-    Task<int> SyncExportedDatasetsAsync();
+    Task<int> SyncExportedDatasetsAsync(IProgress<SyncProgress>? progress = null);
 }
 
 public class DatasetSyncService : IDatasetSyncService
 {
     private readonly IServerAuthService _authService;
     private readonly HttpClient _httpClient;
-    private readonly string _exportRootPath;
+    private readonly IPathService _pathService;
 
-    public DatasetSyncService(IServerAuthService authService, IConfiguration config)
+    public DatasetSyncService(IServerAuthService authService, IConfiguration config, IPathService pathService)
     {
         _authService = authService;
+        _pathService = pathService;
         var serverUrl = config["Settings:ServerUrl"] ?? "http://localhost:5000";
         _httpClient = new HttpClient { BaseAddress = new Uri(serverUrl) };
-
-        // Determine Export Root (Matching DatasetExportService)
-#if ANDROID
-        var downloadsPath = Android.OS.Environment.GetExternalStoragePublicDirectory(Android.OS.Environment.DirectoryDownloads);
-        var baseDir = downloadsPath?.AbsolutePath ?? "/storage/emulated/0/Download";
-        _exportRootPath = Path.Combine(baseDir, "Export");
-#else
-        var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        _exportRootPath = Path.Combine(documentsPath, "Export");
-#endif
     }
 
-    public async Task<int> SyncExportedDatasetsAsync()
+    public async Task<int> SyncExportedDatasetsAsync(IProgress<SyncProgress>? progress = null)
     {
         if (!_authService.IsAuthenticated) return 0;
         var token = await _authService.GetAccessTokenAsync();
@@ -43,36 +32,37 @@ public class DatasetSyncService : IDatasetSyncService
 
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
+        var exportPath = _pathService.GetExportPath();
+        if (!Directory.Exists(exportPath)) return 0;
+
+        var files = Directory.GetFiles(exportPath, "*.*", SearchOption.AllDirectories);
+        int totalFiles = files.Length;
+        int processedCount = 0;
         int successCount = 0;
 
-        try
-        {
-            if (!Directory.Exists(_exportRootPath)) return 0;
+        progress?.Report(new SyncProgress(0, $"Found {totalFiles} files to sync..."));
 
-            // Recurse all files
-            var files = Directory.GetFiles(_exportRootPath, "*.*", SearchOption.AllDirectories);
-            
-            foreach (var filePath in files)
-            {
-                // Calculate relative path for server
-                // e.g. /storage/.../Export/Macro_Model/images/x.jpg -> Macro_Model/images/x.jpg
-                // We want: relativePath = Macro_Model/images/x.jpg
-                
-                // _exportRootPath ends in "Export".
-                // filePath starts with _exportRootPath.
-                
-                // Ensure proper relative path calculation including path separators
-                var relativePath = filePath.Substring(_exportRootPath.Length).Replace("\\", "/").TrimStart('/');
-                
-                // Upload
-                var success = await UploadFileAsync(filePath, relativePath);
-                if (success) successCount++;
-            }
-        }
-        catch (Exception ex)
+        // Use SemaphoreSlim to limit concurrency (e.g. 5 parallel uploads)
+        // Parallel.ForEachAsync is also good, but we want to track successCount safely.
+        
+        var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = 5 };
+        
+        await Parallel.ForEachAsync(files, parallelOptions, async (filePath, ct) =>
         {
-            System.Diagnostics.Debug.WriteLine($"Dataset Sync Error: {ex.Message}");
-        }
+            var relativePath = filePath.Substring(exportPath.Length).Replace("\\", "/").TrimStart('/');
+            var success = await UploadFileAsync(filePath, relativePath);
+            
+            if (success) Interlocked.Increment(ref successCount);
+            
+            var current = Interlocked.Increment(ref processedCount);
+            var percent = (double)current / totalFiles * 100;
+            
+            progress?.Report(new SyncProgress(percent, $"Syncing {Path.GetFileName(filePath)}") 
+            { 
+                 ProcessedCount = current, 
+                 TotalCount = totalFiles 
+            });
+        });
 
         return successCount;
     }
@@ -82,11 +72,10 @@ public class DatasetSyncService : IDatasetSyncService
         try
         {
             var fileName = Path.GetFileName(localPath);
-            using var fileStream = File.OpenRead(localPath);
+            using var fileStream = File.OpenRead(localPath); // FileShare.Read might be needed if contested
             using var content = new MultipartFormDataContent();
             content.Add(new StreamContent(fileStream), "file", fileName);
 
-            // POST /api/datasets/upload?relativePath=...
             var url = $"/api/datasets/upload?relativePath={System.Net.WebUtility.UrlEncode(relativePath)}";
             
             var response = await _httpClient.PostAsync(url, content);
