@@ -3,6 +3,8 @@ using Archery.Shared.Models;
 using GoldTracker.Server.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Http;
 
 namespace GoldTracker.Server.Api;
 
@@ -71,5 +73,57 @@ public static class SessionEndpoints
                 return Results.Problem("Internal Server Error");
             }
         }).DisableAntiforgery(); 
+
+        // List Sessions
+        group.MapGet("/", async (
+            IBlobStorageService storage,
+            ClaimsPrincipal user,
+            ILoggerFactory loggerFactory) =>
+        {
+            var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId)) return Results.Unauthorized();
+
+            // List blobs in "sessions/{userId}"
+            var containerPath = $"sessions/{userId}";
+            var files = await storage.ListBlobsAsync(containerPath);
+            
+            var sessions = new List<Session>();
+
+            foreach (var file in files)
+            {
+                if (file.EndsWith(".json"))
+                {
+                    try 
+                    {
+                        using var stream = await storage.GetBlobAsync(containerPath, file);
+                        var session = await JsonSerializer.DeserializeAsync<Session>(stream);
+                        if (session != null) sessions.Add(session);
+                    }
+                    catch {}
+                }
+            }
+
+            return Results.Ok(sessions.OrderByDescending(s => s.StartTime));
+        });
+
+        // Download Image
+        group.MapGet("/{sessionId}/images/{fileName}", async (
+            string sessionId,
+            string fileName,
+            IBlobStorageService storage,
+            ClaimsPrincipal user) =>
+        {
+            var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId)) return Results.Unauthorized();
+
+            var blobName = $"{userId}/{sessionId}/images/{fileName}";
+            
+            if (await storage.ExistsAsync("sessions", blobName))
+            {
+                var stream = await storage.GetBlobAsync("sessions", blobName);
+                return Results.Stream(stream, "image/jpeg"); // Assume jpeg for simplicity
+            }
+            return Results.NotFound();
+        });
     }
 }

@@ -136,5 +136,76 @@ namespace GoldTracker.Mobile.Services.Sessions
                 return false;
             }
         }
+        public async Task<int> SyncFromServerAsync()
+        {
+            if (!_authService.IsAuthenticated) return 0;
+            var token = await _authService.GetAccessTokenAsync();
+            if (string.IsNullOrEmpty(token)) return 0;
+
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            int importedCount = 0;
+
+            try
+            {
+                // 1. Get List of Sessions from Server
+                // Endpoint: GET /api/sessions/
+                var sessions = await _httpClient.GetFromJsonAsync<List<Session>>("/api/sessions");
+                if (sessions == null) return 0;
+
+                // 2. Process each session
+                foreach (var serverSession in sessions)
+                {
+                    // Check if exists locally
+                    // We assume immutable sessions for now (ID match = same session)
+                    if (await GetSessionAsync(serverSession.Id) != null)
+                    {
+                        continue;
+                    }
+
+                    // 3. Download images for this session
+                    foreach (var end in serverSession.Ends)
+                    {
+                        if (!string.IsNullOrEmpty(end.ImagePath))
+                        {
+                            var fileName = Path.GetFileName(end.ImagePath);
+                            
+                            // Determine local path (store in AppData)
+                            var localFileName = $"synced_{serverSession.Id}_{fileName}";
+                            var localPath = Path.Combine(FileSystem.AppDataDirectory, localFileName);
+                            
+                            // Download if not exists
+                            if (!File.Exists(localPath))
+                            {
+                                try 
+                                {
+                                    var imgBytes = await _httpClient.GetByteArrayAsync($"/api/sessions/{serverSession.Id}/images/{fileName}");
+                                    await File.WriteAllBytesAsync(localPath, imgBytes);
+                                }
+                                catch (Exception ex)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"Failed to download image {fileName}: {ex.Message}");
+                                    // Keep existing path? No, it points to nowhere on this device.
+                                    // Maybe set to null or keep it broken?
+                                    // Let's keep the filename but it won't load.
+                                }
+                            }
+                            
+                            // UPDATE the session object with the NEW local path
+                            end.ImagePath = localPath;
+                        }
+                    }
+
+                    // 4. Save Session Locally
+                    await SaveSessionAsync(serverSession);
+                    importedCount++;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"SyncFromServer Error: {ex.Message}");
+            }
+
+            return importedCount;
+        }
     }
 }

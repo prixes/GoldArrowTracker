@@ -50,7 +50,7 @@
                 }
                 else
                 {
-                    <MudText>Sync All Sessions</MudText>
+                     <MudText>Sync Sessions (Up/Down)</MudText>
                 }
             </MudButton>
 
@@ -117,6 +117,7 @@
         
         try
         {
+            // 1. Upload Local Sessions
             var sessions = await SessionService.GetSessionsAsync();
             int successCount = 0;
             
@@ -126,10 +127,13 @@
                  if(success) successCount++;
             }
             
-            if (successCount > 0)
-                Snackbar.Add($"Synced {successCount} sessions successfully!", Severity.Success);
+            // 2. Download Remote Sessions
+            int importedCount = await SessionSyncService.SyncFromServerAsync();
+
+            if (successCount > 0 || importedCount > 0)
+                Snackbar.Add($"Synced! Uploaded: {successCount}, Downloaded: {importedCount}", Severity.Success);
             else if (sessions.Count > 0)
-                Snackbar.Add("Failed to sync sessions.", Severity.Error);
+                Snackbar.Add("All sessions already synced.", Severity.Success);
             else
                 Snackbar.Add("No sessions to sync.", Severity.Info);
         }
