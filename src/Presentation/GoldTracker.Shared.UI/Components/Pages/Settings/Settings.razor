@@ -8,13 +8,13 @@
 
     <MudPaper Class="pa-4 mt-4 rounded-xl" Elevation="0" Style="border: 1px solid var(--mud-palette-lines-default);">
         <MudText Typo="Typo.h6">Appearance</MudText>
-        <div class="d-flex align-center justify-space-between mt-2">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mt-2">
             <MudText>Dark Mode</MudText>
             <MudSwitch T="bool" 
                       Value="@PreferenceService.IsDarkMode" 
                       ValueChanged="@OnDarkModeDataChanged" 
                       Color="Color.Primary" />
-        </div>
+        </MudStack>
     </MudPaper>
 
     <MudPaper Class="pa-4 mt-4 rounded-xl" Elevation="0" Style="border: 1px solid var(--mud-palette-lines-default);">
@@ -22,10 +22,12 @@
         
         @if (AuthService.IsAuthenticated)
         {
-            <div class="d-flex align-center gap-3 mt-2">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Class="mt-2">
                 @if (!string.IsNullOrEmpty(AuthService.CurrentUser?.PictureUrl))
                 {
-                    <MudAvatar Image="@AuthService.CurrentUser.PictureUrl" Size="Size.Medium" />
+                    <MudAvatar Size="Size.Medium" Style="overflow: hidden;">
+                        <img src="@AuthService.CurrentUser.PictureUrl" style="width: 100%; height: 100%; object-fit: cover;" referrerpolicy="no-referrer" />
+                    </MudAvatar>
                 }
                 else
                 {
@@ -35,7 +37,7 @@
                     <MudText Typo="Typo.body1" Class="font-weight-bold">@AuthService.CurrentUser?.Name</MudText>
                     <MudText Typo="Typo.caption">@AuthService.CurrentUser?.Email</MudText>
                 </MudStack>
-            </div>
+            </MudStack>
             <MudButton Variant="Variant.Outlined" 
                        Color="Color.Error" 
                        Class="mt-4 rounded-lg"
@@ -66,7 +68,7 @@
         
         @if (AuthService.IsAuthenticated)
         {
-             <div class="d-flex flex-column gap-3 mt-4">
+             <MudStack Spacing="3" Class="mt-4">
                  @if (_isSyncing)
                  {
                      <MudPaper Class="pa-3 rounded-lg" Outlined="true" Style="background: rgba(var(--mud-palette-secondary-rgb), 0.05);">
@@ -112,7 +114,7 @@
                         </MudButton>
                      }
                  }
-             </div>
+             </MudStack>
         }
         else
         {

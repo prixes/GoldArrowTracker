@@ -42,7 +42,7 @@
     <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0-android|AnyCPU'">
       <EmbedAssembliesIntoApk>True</EmbedAssembliesIntoApk>
       <!-- Disable FastDev to avoid startup lag and "failed to load bundled assembly" errors -->
-      <AndroidUseFastDeployment>False</AndroidUseFastDeployment>
+      <AndroidUseFastDeployment>True</AndroidUseFastDeployment>
       <AndroidEnableSGenConcurrent>True</AndroidEnableSGenConcurrent>
     </PropertyGroup>
     

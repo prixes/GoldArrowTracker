@@ -59,7 +59,7 @@
         <!-- Score Sheet (Replaces Ends List) -->
         <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Score Sheet (@_session.Ends.Count ends)</MudText>
         
-        <MudPaper Elevation="0" Style="border-radius: 12px; border: 1px solid #eee; overflow: hidden; background: white;" Class="mb-4">
+        <MudPaper Elevation="0" Class="mb-4 score-sheet-container">
             <MudTable T="ScoreRow" Items="@_scoreSheet" Hover="true" Breakpoint="Breakpoint.None" Dense="true" Elevation="0" Class="score-sheet-table" Style="width: 100%;" OnRowClick="OnEndRowClick" RowClass="cursor-pointer">
                 <HeaderContent>
                     <MudTh Style="width: 10%; padding: 8px;">#</MudTh>
@@ -83,7 +83,7 @@
                                         @(arrow.Points == 100 ? "X" : arrow.Points.ToString())
                                         </div>
                                     }
-                                    <div class="score-chip" style="background: #E0E0E0; color: #757575; font-size: 0.7rem;">
+                                    <div class="score-chip" style="background: var(--mud-palette-action-disabled-background); color: var(--mud-palette-text-disabled); font-size: 0.7rem;">
                                         +@(context.Arrows.Count - 3)
                                     </div>
                                 }
@@ -99,19 +99,31 @@
                             </div>
                     </MudTd>
                     <MudTd Style="padding: 8px; text-align: right; font-weight: bold;">@context.EndScore</MudTd>
-                    <MudTd Style="padding: 8px; text-align: right; font-weight: bold; color: #3b82f6;">@context.RunningTotal</MudTd>
+                    <MudTd Style="padding: 8px; text-align: right; font-weight: bold; color: var(--mud-palette-primary);">@context.RunningTotal</MudTd>
                 </RowTemplate>
             </MudTable>
         </MudPaper>
 
         <style>
+            .score-sheet-container {
+                border-radius: 12px; 
+                border: 1px solid var(--mud-palette-lines-default); 
+                overflow: hidden; 
+                background-color: var(--mud-palette-surface);
+            }
             .score-chip {
                 width: 22px; height: 22px; border-radius: 4px; 
                 display: flex; align-items: center; justify-content: center; 
                 font-weight: 800; font-size: 0.75rem;
                 box-shadow: 0 1px 2px rgba(0,0,0,0.1);
             }
-            .score-sheet-table .mud-table-head { background: #fcfcfc; border-bottom: 2px solid #eee; }
+            .score-sheet-table .mud-table-head { 
+                background-color: var(--mud-palette-background-grey);
+                border-bottom: 2px solid var(--mud-palette-lines-default); 
+            }
+            .mud-theme-dark .score-sheet-table .mud-table-head {
+                background-color: rgba(255,255,255,0.05);
+            }
             .score-sheet-table .mud-table-cell { font-size: 0.85rem; }
         </style>
     }

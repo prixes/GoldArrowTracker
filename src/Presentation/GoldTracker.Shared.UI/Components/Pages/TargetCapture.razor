@@ -57,29 +57,38 @@
 
                 <MudStack Spacing="3">
                     <!-- Action Cards -->
-                    <div Class="cursor-pointer d-flex align-center gap-4 px-4 py-3" @onclick="CapturePhotoAsync" Style="transition: all 0.2s ease; border-radius: 6px; border: 1px solid var(--mud-palette-lines-default); background-color: var(--mud-palette-surface);">
-                        <MudStack Style="flex: 1;">
+                    <MudPaper Elevation="0" Class="cursor-pointer d-flex align-center gap-4 px-4 py-4 glass-panel-secondary" @onclick="CapturePhotoAsync">
+                        <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium">
+                            <MudIcon Icon="@Icons.Material.Filled.CameraAlt" />
+                        </MudAvatar>
+                        <MudStack Spacing="0" Style="flex: 1;">
                             <MudText Typo="Typo.h6" Class="font-weight-bold">Take Photo</MudText>
-                            <MudText Typo="Typo.body2" Color="Color.Default">Capture & Analyze</MudText>
+                            <MudText Typo="Typo.caption" Style="opacity: 0.7;">Capture & Analyze</MudText>
                         </MudStack>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Capture</MudButton>
-                    </div>
+                        <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+                    </MudPaper>
 
-                    <div Class="cursor-pointer d-flex align-center gap-4 px-4 py-3" @onclick="PickPhotoAsync" Style="transition: all 0.2s ease; border-radius: 6px; border: 1px solid var(--mud-palette-lines-default); background-color: var(--mud-palette-surface);">
-                        <MudStack Style="flex: 1;">
+                    <MudPaper Elevation="0" Class="cursor-pointer d-flex align-center gap-4 px-4 py-4 glass-panel-secondary" @onclick="PickPhotoAsync">
+                        <MudAvatar Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Medium">
+                            <MudIcon Icon="@Icons.Material.Filled.PhotoLibrary" />
+                        </MudAvatar>
+                        <MudStack Spacing="0" Style="flex: 1;">
                             <MudText Typo="Typo.h6" Class="font-weight-bold">From Gallery</MudText>
-                            <MudText Typo="Typo.body2" Color="Color.Default">Select & Analyze</MudText>
+                            <MudText Typo="Typo.caption" Style="opacity: 0.7;">Select & Analyze</MudText>
                         </MudStack>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Select</MudButton>
-                    </div>
+                        <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+                    </MudPaper>
 
-                    <div Class="cursor-pointer d-flex align-center gap-4 px-4 py-3" @onclick="BrowseStorageAsync" Style="transition: all 0.2s ease; border-radius: 6px; border: 1px solid var(--mud-palette-lines-default); background-color: var(--mud-palette-surface);">
-                        <MudStack Style="flex: 1;">
+                    <MudPaper Elevation="0" Class="cursor-pointer d-flex align-center gap-4 px-4 py-4 glass-panel-secondary" @onclick="BrowseStorageAsync">
+                        <MudAvatar Color="Color.Tertiary" Variant="Variant.Filled" Size="Size.Medium">
+                            <MudIcon Icon="@Icons.Material.Filled.FolderOpen" />
+                        </MudAvatar>
+                        <MudStack Spacing="0" Style="flex: 1;">
                             <MudText Typo="Typo.h6" Class="font-weight-bold">Browse Files</MudText>
-                            <MudText Typo="Typo.body2" Color="Color.Default">Browse & Analyze</MudText>
+                            <MudText Typo="Typo.caption" Style="opacity: 0.7;">Browse & Analyze</MudText>
                         </MudStack>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Disabled="_isLoading">Browse</MudButton>
-                    </div>
+                        <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+                    </MudPaper>
                 </MudStack>
 
                 <!-- Recent Images -->
@@ -286,4 +295,17 @@
         </MudPaper>
     }
 </MudContainer>
+
+<style>
+    .glass-panel-secondary {
+        background: var(--mud-palette-surface);
+        border: 1px solid var(--mud-palette-lines-default);
+        border-radius: 20px;
+        transition: background-color 0.2s, transform 0.2s;
+    }
+    .glass-panel-secondary:active {
+        background-color: var(--mud-palette-action-pressed);
+        transform: scale(0.98);
+    }
+</style>
 

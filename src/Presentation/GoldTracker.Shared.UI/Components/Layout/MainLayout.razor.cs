@@ -33,6 +33,35 @@ namespace GoldTracker.Shared.UI.Components.Layout
 
         protected override async Task OnInitializedAsync()
         {
+            // Configure Typography
+            _theme.Typography.Default.FontFamily = new[] { "Roboto", "sans-serif" };
+            _theme.Typography.Body1.FontFamily = new[] { "Roboto", "sans-serif" };
+            _theme.Typography.Body2.FontFamily = new[] { "Roboto", "sans-serif" };
+            
+            _theme.Typography.H1.FontFamily = new[] { "Koulen", "sans-serif" };
+            _theme.Typography.H1.LetterSpacing = ".05rem";
+            
+            _theme.Typography.H2.FontFamily = new[] { "Koulen", "sans-serif" };
+            _theme.Typography.H2.LetterSpacing = ".05rem";
+            
+            _theme.Typography.H3.FontFamily = new[] { "Koulen", "sans-serif" };
+            _theme.Typography.H3.LetterSpacing = ".05rem";
+            
+            _theme.Typography.H4.FontFamily = new[] { "Koulen", "sans-serif" };
+            _theme.Typography.H4.LetterSpacing = ".05rem";
+            
+            _theme.Typography.H5.FontFamily = new[] { "Koulen", "sans-serif" };
+            _theme.Typography.H5.LetterSpacing = ".05rem";
+            
+            _theme.Typography.H6.FontFamily = new[] { "Koulen", "sans-serif" };
+            _theme.Typography.H6.LetterSpacing = ".05rem";
+            
+            _theme.Typography.Subtitle1.FontFamily = new[] { "Roboto", "sans-serif" };
+            _theme.Typography.Subtitle2.FontFamily = new[] { "Roboto", "sans-serif" };
+            
+            _theme.Typography.Button.FontFamily = new[] { "Roboto", "sans-serif" };
+            _theme.Typography.Button.FontWeight = "700";
+
             PreferenceService.OnChange += UpdateState;
             
             // Quick Init for UI State

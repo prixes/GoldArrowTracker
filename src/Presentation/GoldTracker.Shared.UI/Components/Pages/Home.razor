@@ -1,38 +1,117 @@
 @page "/"
-
-<MudText Typo="Typo.h4" GutterBottom="true">Gold Arrow Tracker</MudText>
-<MudText Typo="Typo.subtitle1" Class="mb-4">AI-powered archery scoring companion!</MudText>
+<MudText Typo="Typo.subtitle1" Class="mb-6" Color="Color.Secondary">AI-powered archery scoring companion!</MudText>
 
 <MudGrid Spacing="3">
-    <MudItem xs="12" sm="6">
-        <MudCard Elevation="0" Class="pa-4 glass-panel" Style="height: 100%; transition: transform 0.2s;">
-            <MudCardActions Class="d-flex justify-center py-6">
-                <MudButton ButtonType="ButtonType.Button" OnClick="NavigateToCapture" Variant="Variant.Text" Class="flex-grow-1 h-100">
-                    <div class="d-flex flex-column align-center gap-3">
-                        <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Large" Class="mb-2" Style="width: 80px; height: 80px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
-                            <MudIcon Icon="@Icons.Material.Filled.Camera" Size="Size.Large" Style="font-size: 3rem;" />
-                        </MudAvatar>
-                        <MudText Typo="Typo.h5" Class="text-white font-weight-bold">Capture Target</MudText>
-                        <MudText Typo="Typo.body2" Align="Align.Center" Class="text-white-dim px-4">
-                            Auto-detect arrows and score your target instantly using AI Vision.
-                        </MudText>
-                    </div>
-                </MudButton>
-            </MudCardActions>
+    <!-- Capture Card -->
+    <MudItem xs="12">
+        <MudCard Elevation="0" Class="pa-6 glass-panel fancy-card" @onclick="NavigateToCapture" Style="cursor: pointer; position: relative; overflow: hidden;">
+             <!-- Decorative background element -->
+             <div style="position: absolute; top: -20px; right: -20px; width: 100px; height: 100px; background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%); border-radius: 50%;"></div>
+             
+             <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="w-100">
+                <MudStack Spacing="1">
+                     <MudChip T="string" Size="Size.Small" Color="Color.Tertiary" Variant="Variant.Filled" Style="width: fit-content; font-weight: bold; letter-spacing: 1px;">✨ AI POWERED</MudChip>
+                     <MudText Typo="Typo.h5" Class="font-weight-bold text-white" Style="font-size: 1.5rem;">Score Like A Pro</MudText>
+                     <MudText Typo="Typo.body2" Class="text-white-dim" Style="opacity: 0.95; max-width: 200px;">Instantly analyze targets with our advanced Neural Engine. Zero math. Pure focus.</MudText>
+                </MudStack>
+                 <MudAvatar Color="Color.Surface" Variant="Variant.Filled" Size="Size.Large" Class="fancy-avatar" Style="width: 64px; height: 64px;">
+                    <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Large" Color="Color.Tertiary" />
+                </MudAvatar>
+            </MudStack>
         </MudCard>
     </MudItem>
-    <MudItem xs="12" sm="6">
-        <MudCard Elevation="0" Class="pa-4 glass-panel" Style="height: 100%; transition: transform 0.2s;">
-            <div class="d-flex flex-column align-center py-6 gap-3">
-                 <MudAvatar Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Large" Class="mb-2" Style="width: 80px; height: 80px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
-                    <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Large" Style="font-size: 3rem;" />
+
+    <!-- Manual Session Banner -->
+    <MudItem xs="12">
+        <MudCard Elevation="0" Class="pa-5 glass-panel cursor-pointer" @onclick="CreateManualSession" Style="background: linear-gradient(135deg, #36D1DC 0%, #5B86E5 100%); color: white; position: relative; overflow: hidden;">
+            <!-- Decorative background element -->
+            <div style="position: absolute; top: -15px; right: -15px; width: 80px; height: 80px; background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%); border-radius: 50%;"></div>
+            
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="4">
+                <MudAvatar Style="background-color: white;" Variant="Variant.Filled" Size="Size.Medium">
+                    <svg style="width: 24px; height: 24px; color: #5B86E5; transform: rotate(-45deg);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <!-- Centered Bow Wood -->
+                        <path d="M10 3 C 15 3 15 21 10 21" />
+                        <!-- Bow String -->
+                        <line x1="10" y1="3" x2="10" y2="21" stroke-width="1.5" />
+                        <!-- Arrow Shaft -->
+                        <line x1="2" y1="12" x2="22" y2="12" />
+                        <!-- Arrow Head -->
+                        <polyline points="18 8 22 12 18 16" />
+                        <!-- Arrow Vanes (Fletching) -->
+                        <path d="M4 12 L2 9 M5 12 L3 9 M4 12 L2 15 M5 12 L3 15" stroke-width="1.2" />
+                    </svg>
                 </MudAvatar>
-                <MudText Typo="Typo.h5" Class="text-white font-weight-bold">History</MudText>
-                <MudText Typo="Typo.body2" Align="Align.Center" Class="text-white-dim px-4">
-                    Review past sessions, track your progress, and analyze shooting patterns.
-                </MudText>
-            </div>
+                <MudStack Spacing="1">
+                     <MudText Typo="Typo.h6" Class="font-weight-bold" Style="color: white; line-height: 1.2;">Start Session Tracking</MudText>
+                     <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.9);">Record your arrows simple and fast</MudText>
+                </MudStack>
+                <MudSpacer />
+                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Color="Color.Inherit" />
+            </MudStack>
         </MudCard>
+    </MudItem>
+
+    <!-- Latest Session Highlight -->
+    <MudItem xs="12">
+        <MudText Typo="Typo.h6" Class="mb-3 mt-2 font-weight-bold">Latest Session</MudText>
+        @if (_latestSession != null)
+        {
+             <MudPaper Elevation="0" Class="pa-5 glass-panel-secondary" @onclick="NavigateToLatestSession" Style="cursor: pointer; position: relative; overflow: hidden;">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                     <MudStack Spacing="1">
+                         <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight: bold; letter-spacing: 1px;">@_latestSession.StartTime.ToString("MMM dd").ToUpper()</MudText>
+                         <MudText Typo="Typo.h3" Class="font-weight-bold" Color="Color.Primary">@_latestSession.TotalScore</MudText>
+                         <MudText Typo="Typo.caption" Style="opacity: 0.6;">Total Score</MudText>
+                     </MudStack>
+                     
+                     <MudStack Spacing="1" AlignItems="AlignItems.End">
+                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                             <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Small" Color="Color.Success" />
+                             <MudText Typo="Typo.h6" Class="font-weight-bold">@(_latestSession.ArrowAverage.ToString("F1"))</MudText>
+                         </MudStack>
+                         <MudText Typo="Typo.caption" Style="opacity: 0.6;">Avg / Arrow</MudText>
+                         <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined" Class="mt-1">@_latestSession.Ends.Count Ends</MudChip>
+                     </MudStack>
+                </MudStack>
+            </MudPaper>
+        }
+        else
+        {
+             <MudPaper Elevation="0" Class="pa-6 glass-panel-secondary d-flex flex-column align-center justify-center gap-2">
+                 <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Large" Color="Color.Default" Style="opacity: 0.5;" />
+                 <MudText Typo="Typo.body1" Style="opacity: 0.7;">No sessions recorded yet.</MudText>
+                 <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="NavigateToCapture">Start Shooting</MudButton>
+             </MudPaper>
+        }
     </MudItem>
 </MudGrid>
 
+
+
+<style>
+    .glass-panel {
+        background: linear-gradient(135deg, var(--mud-palette-primary) 0%, var(--mud-palette-secondary) 100%);
+        border-radius: 20px;
+        color: white;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .glass-panel:active {
+        transform: scale(0.98);
+    }
+    
+    .glass-panel-secondary {
+        background: var(--mud-palette-surface);
+        border: 1px solid var(--mud-palette-lines-default);
+        border-radius: 20px;
+        transition: background-color 0.2s;
+    }
+    .glass-panel-secondary:active {
+        background-color: var(--mud-palette-action-pressed);
+    }
+    .fancy-avatar {
+        width: 56px; height: 56px;
+        background: white !important;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+</style>
