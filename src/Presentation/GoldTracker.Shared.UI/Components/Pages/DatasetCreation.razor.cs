@@ -101,14 +101,14 @@ namespace GoldTracker.Shared.UI.Components.Pages
                 await UpdateSelectedAnnotationType(10); // Target mode -> class 10
                 _selectedMode = mode;
                 // Important: Keep selection? Or deselect? Usually keeping is nice.
-                await JSRuntime.InvokeVoidAsync("annotator.setSquareEnforced", "annotation-canvas", false);
+                await JSRuntime.InvokeVoidAsync("annotator.setSquareEnforced", "annotation-canvas", true);
             }
             else
             {
                 _selectedMode = mode;
                 await JSRuntime.InvokeVoidAsync("annotator.deselect", "annotation-canvas");
-                // Target (mode='target') is NOT Square Enforced
-                if (_isLoaded) await JSRuntime.InvokeVoidAsync("annotator.setSquareEnforced", "annotation-canvas", false);
+                // Target (mode='target') is Square Enforced
+                if (_isLoaded) await JSRuntime.InvokeVoidAsync("annotator.setSquareEnforced", "annotation-canvas", true);
             }
             StateHasChanged();
         }
@@ -144,9 +144,8 @@ namespace GoldTracker.Shared.UI.Components.Pages
                 Console.WriteLine("[DatasetCreation] Initializing annotator with canvas and image elements.");
                 await JSRuntime.InvokeVoidAsync("annotator.init", _canvasElement, _imageElement, _dotNetObjectReference);
                 
-                // Apply correct square enforcement based on current selection
-                bool enforceSquare = _selectedMode == "arrow";
-                await JSRuntime.InvokeVoidAsync("annotator.setSquareEnforced", "annotation-canvas", enforceSquare);
+                // Always enforce square
+                await JSRuntime.InvokeVoidAsync("annotator.setSquareEnforced", "annotation-canvas", true);
             }
         }
 
@@ -255,9 +254,8 @@ namespace GoldTracker.Shared.UI.Components.Pages
             // Set selection to new box
             _selectedAnnotationIndex = _annotations.Count - 1;
             
-            // Enforce logic based on type
-            bool squareEnforced = classId == 11 || (classId < 10 && classId >= 0); // Anything but Target
-            if (classId == 10) squareEnforced = false;
+            // Enforce logic based on type (Always Square)
+            bool squareEnforced = true;
             
             await JSRuntime.InvokeVoidAsync("annotator.setSquareEnforced", "annotation-canvas", squareEnforced);
             
@@ -297,7 +295,7 @@ namespace GoldTracker.Shared.UI.Components.Pages
             if (index >= 0 && index < _annotations.Count)
             {
                var ann = _annotations[index];
-               bool squareEnforced = ann.ClassId != 10; // 10 is Target (Rect)
+               bool squareEnforced = true;
                JSRuntime.InvokeVoidAsync("annotator.setSquareEnforced", "annotation-canvas", squareEnforced);
             }
             

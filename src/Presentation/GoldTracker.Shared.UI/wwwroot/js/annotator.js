@@ -211,17 +211,10 @@ var annotator = {
                 this.ctx.strokeStyle = box.color || '#FF0000';
                 this.ctx.lineWidth = isSelected ? 3 : 2;
 
-                // Draw circle (ellipse)
-                // If it's an arrow (label != target), ALWAYS enforce circle rendering.
-                // squareEnforced is for interaction, but visual rendering should always be circular for arrows
+                // Draw as circle/ellipse based on aspect ratio rules
                 this.ctx.beginPath();
-                if (box.label && box.label.toLowerCase() !== 'target') {
-                    const radius = Math.min(Math.abs(w), Math.abs(h)) / 2;
-                    // Use center + avg radius for best visual fit
-                    this.ctx.arc(x + w / 2, y + h / 2, radius, 0, 2 * Math.PI);
-                } else {
-                    this.ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, 2 * Math.PI);
-                }
+                const radius = Math.min(Math.abs(w), Math.abs(h)) / 2;
+                this.ctx.arc(x + w / 2, y + h / 2, radius, 0, 2 * Math.PI);
                 this.ctx.stroke();
 
                 if (isSelected && !this.readOnly) {
@@ -267,14 +260,19 @@ var annotator = {
                 this.ctx.strokeStyle = '#000000';
                 this.ctx.lineWidth = 1;
 
-                const handles = [
+                let handles = [
                     // Corners
                     { x: x, y: y }, { x: x + w, y: y },
-                    { x: x, y: y + h }, { x: x + w, y: y + h },
-                    // Edges
-                    { x: x + w / 2, y: y }, { x: x + w / 2, y: y + h },
-                    { x: x, y: y + h / 2 }, { x: x + w, y: y + h / 2 }
+                    { x: x, y: y + h }, { x: x + w, y: y + h }
                 ];
+
+                // Only add edge handles if square is NOT enforced
+                if (!this.squareEnforced) {
+                    handles.push(
+                        { x: x + w / 2, y: y }, { x: x + w / 2, y: y + h },
+                        { x: x, y: y + h / 2 }, { x: x + w, y: y + h / 2 }
+                    );
+                }
 
                 handles.forEach(p => {
                     this.ctx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
@@ -429,11 +427,13 @@ var annotator = {
                 if (Math.abs(pos.x - x) < size && Math.abs(pos.y - (y + h)) < size) return 'bl';
                 if (Math.abs(pos.x - (x + w)) < size && Math.abs(pos.y - (y + h)) < size) return 'br';
 
-                // Edge handles (for cut-off targets)
-                if (Math.abs(pos.y - y) < size && pos.x > x && pos.x < x + w) return 't';
-                if (Math.abs(pos.y - (y + h)) < size && pos.x > x && pos.x < x + w) return 'b';
-                if (Math.abs(pos.x - x) < size && pos.y > y && pos.y < y + h) return 'l';
-                if (Math.abs(pos.x - (x + w)) < size && pos.y > y && pos.y < y + h) return 'r';
+                // Edge handles (only if not square enforced)
+                if (!this.squareEnforced) {
+                    if (Math.abs(pos.y - y) < size && pos.x > x && pos.x < x + w) return 't';
+                    if (Math.abs(pos.y - (y + h)) < size && pos.x > x && pos.x < x + w) return 'b';
+                    if (Math.abs(pos.x - x) < size && pos.y > y && pos.y < y + h) return 'l';
+                    if (Math.abs(pos.x - (x + w)) < size && pos.y > y && pos.y < y + h) return 'r';
+                }
 
                 return null;
             },
@@ -456,8 +456,8 @@ var annotator = {
                 else if (this.activeHandle === 'l') { fixX = box.endX * this.canvas.width; }
                 else if (this.activeHandle === 'r') { fixX = box.startX * this.canvas.width; }
 
-                // Apply square enforcement if needed
-                if (this.squareEnforced && box.label !== 'target') {
+                // Apply square enforcement
+                if (this.squareEnforced) {
                     if (['tl', 'tr', 'bl', 'br'].includes(this.activeHandle)) {
                         const dx = nx - fixX;
                         const dy = ny - fixY;
@@ -465,8 +465,6 @@ var annotator = {
                         nx = fixX + (dx >= 0 ? side : -side);
                         ny = fixY + (dy >= 0 ? side : -side);
                     }
-                    // Edge resizing doesn't easily support square enforcement without shifting center,
-                    // but for targets (where square is false) it's perfect.
                 }
 
                 // Update box coordinates
@@ -629,14 +627,9 @@ var annotator = {
         const x = this.startX;
         const y = this.startY;
 
-        this.ctx.beginPath();
-        if (this.squareEnforced) {
-            // Ellipse if enforced (circle)
-            const rad = Math.abs(w) / 2;
-            this.ctx.arc(x + w / 2, y + h / 2, rad, 0, 2 * Math.PI);
-        } else {
-            this.ctx.rect(x, y, w, h);
-        }
+        // Always draw circle for consistency
+        const rad = Math.min(Math.abs(w), Math.abs(h)) / 2;
+        this.ctx.arc(x + w / 2, y + h / 2, rad, 0, 2 * Math.PI);
         this.ctx.stroke();
 
         // Draw dimensions
