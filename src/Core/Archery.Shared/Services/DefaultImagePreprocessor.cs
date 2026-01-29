@@ -13,13 +13,23 @@ namespace Archery.Shared.Services;
 /// </summary>
 public class DefaultImagePreprocessor : IImagePreprocessor
 {
-    public (DenseTensor<float> Tensor, int OriginalWidth, int OriginalHeight, float ScaleX, float ScaleY) Preprocess(byte[] imageBytes, int inputSize, string? filePath = null)
+    public PreprocessingResult Preprocess(byte[] imageBytes, int inputSize, string? filePath = null)
     {
         using var imageStream = new MemoryStream(imageBytes);
         using var image = Image.Load<Rgb24>(imageStream);
 
         var originalWidth = image.Width;
         var originalHeight = image.Height;
+
+        // Calculate scaling and padding (Letterboxing)
+        float ratio = Math.Min((float)inputSize / originalWidth, (float)inputSize / originalHeight);
+        float scale = 1.0f / ratio; // Back-scaling factor
+
+        int scaledWidth = (int)(originalWidth * ratio);
+        int scaledHeight = (int)(originalHeight * ratio);
+
+        float padX = (inputSize - scaledWidth) / 2.0f;
+        float padY = (inputSize - scaledHeight) / 2.0f;
 
         // Resize image to input size while maintaining aspect ratio (centralized logic)
         image.Mutate(x => x.Resize(new ResizeOptions
@@ -28,10 +38,6 @@ public class DefaultImagePreprocessor : IImagePreprocessor
             Mode = ResizeMode.Pad,
             PadColor = Color.Black
         }));
-
-        // Calculate scale factors for post-processing
-        float scaleX = (float)originalWidth / inputSize;
-        float scaleY = (float)originalHeight / inputSize;
 
         // Create tensor (1, 3, H, W)
         var tensor = new DenseTensor<float>(new[] { 1, 3, inputSize, inputSize });
@@ -52,6 +58,6 @@ public class DefaultImagePreprocessor : IImagePreprocessor
             }
         });
 
-        return (tensor, originalWidth, originalHeight, scaleX, scaleY);
+        return new PreprocessingResult(tensor, originalWidth, originalHeight, scale, padX, padY);
     }
 }

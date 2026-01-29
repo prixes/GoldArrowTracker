@@ -49,7 +49,7 @@ public class BrowserImageService : IPlatformImageService
         }
     }
 
-    public async Task<byte[]> CropImageAsync(byte[] imageBytes, double startXNorm, double startYNorm, double widthNorm, double heightNorm)
+    public async Task<byte[]> CropImageAsync(byte[] imageBytes, double startXNorm, double startYNorm, double widthNorm, double heightNorm, string? filePath = null)
     {
         return await Task.Run(() =>
         {
@@ -210,7 +210,7 @@ public class BrowserImageService : IPlatformImageService
         }
     }
 
-    public async Task<string> GetImageDisplaySourceAsync(byte[] imageBytes, TargetAnalysisResult? analysisResult = null)
+    public async Task<string> GetImageDisplaySourceAsync(byte[] imageBytes, TargetAnalysisResult? analysisResult = null, string? filePath = null)
     {
         // On Web, burning in detections via ImageSharp (WASM) is too slow.
         // We return the raw image and use the native browser canvas for overlays.

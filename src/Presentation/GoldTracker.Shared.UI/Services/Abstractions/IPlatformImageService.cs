@@ -26,9 +26,9 @@ public interface IPlatformImageService
     Task<(int Width, int Height)> GetImageDimensionsAsync(byte[] imageBytes);
 
     /// <summary>
-    /// Crops an image based on normalized coordinates (0-1).
+    /// Crops an image.
     /// </summary>
-    Task<byte[]> CropImageAsync(byte[] imageBytes, double startXNorm, double startYNorm, double widthNorm, double heightNorm);
+    Task<byte[]> CropImageAsync(byte[] imageBytes, double startXNorm, double startYNorm, double widthNorm, double heightNorm, string? filePath = null);
 
     /// <summary>
     /// Resizes image bytes to a maximum dimension.
@@ -76,8 +76,8 @@ public interface IPlatformImageService
     Task<byte[]> LoadImageBytesAsync(string path, Guid? sessionId = null);
 
     /// <summary>
-    /// Prepares an image for display, optionally with detections burned in.
-    /// This allows platforms to optimize (e.g., Web uses native canvas, Mobile burns in).
+    /// Gets a displayable image source (e.g. base64 string) from bytes.
+    /// On mobile, this may involve resizing and rotating based on EXIF.
     /// </summary>
-    Task<string> GetImageDisplaySourceAsync(byte[] imageBytes, TargetAnalysisResult? analysisResult = null);
+    Task<string> GetImageDisplaySourceAsync(byte[] imageBytes, TargetAnalysisResult? analysisResult = null, string? filePath = null);
 }

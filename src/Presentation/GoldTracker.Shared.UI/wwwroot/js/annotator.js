@@ -601,6 +601,54 @@ var annotator = {
         }
     },
 
+    drawPreview: function (pos) {
+        const dx = pos.x - this.startX;
+        const dy = pos.y - this.startY;
+        let endX = pos.x;
+        let endY = pos.y;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+
+        if (this.squareEnforced) {
+            const side = Math.max(absDx, absDy);
+            endX = this.startX + (dx >= 0 ? side : -side);
+            endY = this.startY + (dy >= 0 ? side : -side);
+        }
+
+        // Call redraw to clear and draw existing boxes
+        this.redraw();
+
+        // Draw the preview box
+        this.ctx.save();
+        this.ctx.strokeStyle = '#00FF00';
+        this.ctx.lineWidth = 2;
+        this.ctx.setLineDash([5, 5]);
+
+        const w = endX - this.startX;
+        const h = endY - this.startY;
+        const x = this.startX;
+        const y = this.startY;
+
+        this.ctx.beginPath();
+        if (this.squareEnforced) {
+            // Ellipse if enforced (circle)
+            const rad = Math.abs(w) / 2;
+            this.ctx.arc(x + w / 2, y + h / 2, rad, 0, 2 * Math.PI);
+        } else {
+            this.ctx.rect(x, y, w, h);
+        }
+        this.ctx.stroke();
+
+        // Draw dimensions
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.fillRect(x, y - 25, 80, 20);
+        this.ctx.fillStyle = '#FFF';
+        this.ctx.font = '12px Arial';
+        this.ctx.fillText(`${Math.round(Math.abs(w))} x ${Math.round(Math.abs(h))}`, x + 5, y - 10);
+
+        this.ctx.restore();
+    },
+
     selectBox: function (canvasId, index) {
         const inst = this.instances.get(canvasId);
         if (inst) {

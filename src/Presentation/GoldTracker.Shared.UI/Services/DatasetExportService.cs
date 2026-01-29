@@ -20,7 +20,7 @@ namespace GoldTracker.Shared.UI.Services
             _imageProcessingService = imageProcessingService;
         }
 
-        public async Task ExportDatasetAsync(byte[] originalImageBytes, List<DatasetAnnotation> annotations)
+        public async Task ExportDatasetAsync(byte[] originalImageBytes, List<DatasetAnnotation> annotations, string? filePath = null)
         {
             if (originalImageBytes == null || annotations == null || !annotations.Any())
             {
@@ -38,8 +38,10 @@ namespace GoldTracker.Shared.UI.Services
             // --- 1. Macro Model (Targets) ---
             var macroImageDir = Path.Combine("Export", "Macro_Model", "images");
             
-            // Filter for targets (Class 11 represents Target Face)
-            var targets = annotations.Where(a => a.ClassId == 11).ToList();
+            // Filter for targets using INTERNAL ID (10)
+            // Application Internal: 10 = Target, 11 = 10pts
+            // Dataset Standard: 11 = Target, 10 = 10pts
+            var targets = annotations.Where(a => a.ClassId == 10).ToList();
             var targetStrings = new List<string>();
             foreach (var t in targets)
             {
@@ -58,15 +60,8 @@ namespace GoldTracker.Shared.UI.Services
                     // Calculate label path based on image path (standard YOLO structure)
                     // Assumption: SaveImageAsync creates the directory structure
                     // On Mobile: storage/Export/Macro_Model/images/file.jpg -> storage/Export/Macro_Model/labels/file.txt
-                    // On Web: This logic might be tricky as paths are virtual/downloads.
-                    // But CameraService.WriteFileTextAsync should handle it if path is provided.
-                    // However, we rely on string replacement which implies knowledge of the structure returned by SaveImageAsync.
-                    // SaveImageAsync returns full path.
                     
                     var labelDir = Path.Combine("Export", "Macro_Model", "labels");
-                    // We can't easily deduce the full label path if we don't know the root.
-                    // But SaveImageAsync returns the *full local path*.
-                    // So we can try to replace "images" with "labels".
                     
                     string macroLabelPath;
                     var directoryName = Path.GetDirectoryName(macroImagePath);
@@ -82,15 +77,6 @@ namespace GoldTracker.Shared.UI.Services
                     }
                     else
                     {
-                        // Fallback: just put it in a separate folder relative to whatever root we can guess?
-                        // Or just invoke WriteFileTextAsync with our relative intended path?
-                        // CameraService.WriteFileTextAsync logic:
-                        // Web: ignores path directory usually, just downloads "filename".
-                        // Mobile: WriteFileTextAsync implementation simply calls File.WriteAllTextAsync(path, content).
-                        // So we MUST provide a valid full path for Mobile.
-                        
-                        // If directoryName didn't end in images, maybe we just swap the last part manually?
-                        // Let's rely on the replace method for now as we enforced the creation path above.
                         macroLabelPath = macroImagePath.Replace(".jpg", ".txt").Replace("images", "labels");
                         
                         // Ensure directory exists for label if we just computed it
@@ -112,6 +98,7 @@ namespace GoldTracker.Shared.UI.Services
                  // Using Task.Run to offload heavy image processing (cropping)
                  await Task.Run(async () =>
                  {
+                    // Full path to image directory for micro model
                     var microImageDir = Path.Combine("Export", "Micro_Model", "images");
                     
                     double padding = 0.05; // 5% padding around target
@@ -139,7 +126,8 @@ namespace GoldTracker.Shared.UI.Services
                         byte[] cropBytes = await _imageProcessingService.CropImageAsync(
                             originalImageBytes,
                             cropStartX, cropStartY,
-                            cropW, cropH);
+                            cropW, cropH,
+                            filePath); // PASS filePath!
 
                         if (cropBytes == null || cropBytes.Length == 0) continue;
 
@@ -148,7 +136,8 @@ namespace GoldTracker.Shared.UI.Services
 
                         var microStrings = new List<string>();
                         
-                        // Add target itself (class 11) relative to crop
+                        // Add target itself relative to crop
+                        // Mapping: Internal 10 (Target) -> Dataset 11
                         var tCenterX = (t.StartX + t.EndX) / 2.0;
                         var tCenterY = (t.StartY + t.EndY) / 2.0;
                         var tLocalX = (tCenterX - cropStartX) / cropW;
@@ -156,12 +145,12 @@ namespace GoldTracker.Shared.UI.Services
                         var tLocalW = tW_raw / cropW;
                         var tLocalH = tH_raw / cropH;
                         
-                        // 11 is Target Face class
                         microStrings.Add($"11 {tLocalX:F6} {tLocalY:F6} {tLocalW:F6} {tLocalH:F6}");
 
                         // Find arrows inside this crop
+                        // Valid arrows are NOT Class 10 (Target)
                         var validArrows = annotations
-                            .Where(a => a.ClassId != 11)
+                            .Where(a => a.ClassId != 10)
                             .Where(a =>
                             {
                                 var cX = (a.StartX + a.EndX) / 2.0;
@@ -179,7 +168,12 @@ namespace GoldTracker.Shared.UI.Services
                             var y_local = (aCenterY - cropStartY) / cropH;
                             var w_local = aW / cropW;
                             var h_local = aH / cropH;
-                            microStrings.Add($"{a.ClassId} {x_local:F6} {y_local:F6} {w_local:F6} {h_local:F6}");
+                            
+                            // Mapping: Internal 11 (10pts) -> Dataset 10
+                            // Others (9,8,7...) remain same
+                            int datasetClassId = a.ClassId == 11 ? 10 : a.ClassId;
+                            
+                            microStrings.Add($"{datasetClassId} {x_local:F6} {y_local:F6} {w_local:F6} {h_local:F6}");
                         }
 
                         if (microStrings.Any())

@@ -2,6 +2,7 @@
 
 using AndroidGraphics = global::Android.Graphics;
 using Microsoft.ML.OnnxRuntime.Tensors;
+using Archery.Shared.Services;
 
 namespace GoldTracker.Mobile.Platforms.Android;
 
@@ -11,7 +12,7 @@ namespace GoldTracker.Mobile.Platforms.Android;
 /// </summary>
 public class AndroidImagePreprocessorService : Archery.Shared.Services.IImagePreprocessor
 {
-    public (DenseTensor<float> Tensor, int OriginalWidth, int OriginalHeight, float ScaleX, float ScaleY) Preprocess(byte[] imageBytes, int inputSize, string? filePath = null)
+    public PreprocessingResult Preprocess(byte[] imageBytes, int inputSize, string? filePath = null)
     {
         // 1. Decode bounds to get original dimensions and calculate sample size
         var options = new AndroidGraphics.BitmapFactory.Options { InJustDecodeBounds = true };
@@ -62,9 +63,15 @@ public class AndroidImagePreprocessorService : Archery.Shared.Services.IImagePre
             // 6. Fill tensor and normalize
             var tensor = new DenseTensor<float>(new[] { 1, 3, inputSize, inputSize });
             
-            // Calculate scales relative to the rotated/active image area
-            float scaleX = (float)rotatedWidth / inputSize;
-            float scaleY = (float)rotatedHeight / inputSize;
+            // Calculate scales relative to the rotated/active image area (Logic must match CreatePaddedBitmap)
+            float ratio = Math.Min((float)inputSize / rotatedWidth, (float)inputSize / rotatedHeight);
+            float scale = 1.0f / ratio;
+
+            int scaledWidth = (int)(rotatedWidth * ratio);
+            int scaledHeight = (int)(rotatedHeight * ratio);
+            
+            float padX = (inputSize - scaledWidth) / 2.0f;
+            float padY = (inputSize - scaledHeight) / 2.0f;
 
             for (int i = 0; i < pixels.Length; i++)
             {
@@ -78,7 +85,7 @@ public class AndroidImagePreprocessorService : Archery.Shared.Services.IImagePre
                 tensor[0, 2, y, x] = (color & 0xFF) / 255.0f;         // B
             }
 
-            return (tensor, rotatedWidth, rotatedHeight, scaleX, scaleY);
+            return new PreprocessingResult(tensor, rotatedWidth, rotatedHeight, scale, padX, padY);
         }
         catch (Exception ex)
         {

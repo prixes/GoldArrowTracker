@@ -269,10 +269,11 @@ public class ImageProcessingService : IPlatformImageService
     /// <summary>
     /// Crops an image based on normalized coordinates (0-1).
     /// </summary>
-    public async Task<byte[]> CropImageAsync(byte[] imageBytes, double startXNorm, double startYNorm, double widthNorm, double heightNorm)
+    public async Task<byte[]> CropImageAsync(byte[] imageBytes, double startXNorm, double startYNorm, double widthNorm, double heightNorm, string? filePath = null)
     {
 #if ANDROID
-        using var bitmap = await GoldTracker.Mobile.Platforms.Android.AndroidImageProcessor.LoadBitmapAsync(imageBytes);
+        // Pass filePath to LoadBitmapAsync to ensure EXIF rotation is robust
+        using var bitmap = await GoldTracker.Mobile.Platforms.Android.AndroidImageProcessor.LoadBitmapAsync(imageBytes, filePath);
         if (bitmap == null) return Array.Empty<byte>();
         return await GoldTracker.Mobile.Platforms.Android.AndroidImageProcessor.CropBitmapAsync(bitmap, startXNorm, startYNorm, widthNorm, heightNorm);
 #else
@@ -427,11 +428,12 @@ public class ImageProcessingService : IPlatformImageService
         catch { }
         return Array.Empty<byte>();
     }
-    public async Task<string> GetImageDisplaySourceAsync(byte[] imageBytes, TargetAnalysisResult? analysisResult = null)
+    public async Task<string> GetImageDisplaySourceAsync(byte[] imageBytes, TargetAnalysisResult? analysisResult = null, string? filePath = null)
     {
         // On Mobile, we resize to 1024 for display and optionally burn in detections
         // to save memory and avoid complex canvas logic in simple views.
-        var displayBytes = await ResizeImageAsync(imageBytes, 1024, 80);
+        // Pass filePath to ResizeImageAsync to ensure EXIF rotation is robust (reading from file header).
+        var displayBytes = await ResizeImageAsync(imageBytes, 1024, 80, filePath);
         
         if (analysisResult != null)
         {

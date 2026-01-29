@@ -261,7 +261,7 @@
                         
                         @foreach (var arrow in _analysisResult.ArrowScores)
                         {
-                            <div Class="pa-3" Style="@GetArrowStyle(arrow)">
+                            <MudPaper Class="pa-3" Elevation="0" Style="@($"background-color: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-left: 4px solid {GetScoreColor(arrow.Points)}; border-radius: 8px;")">
                                 <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
                                     <MudStack Style="flex: 1;" Spacing="0">
                                         <MudText Typo="Typo.body1" Class="font-weight-bold">
@@ -275,7 +275,7 @@
                                         @arrow.Points pts
                                     </MudChip>
                                 </MudStack>
-                            </div>
+                            </MudPaper>
                         }
                     }
                 </MudStack>

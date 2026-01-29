@@ -61,11 +61,11 @@ public class ObjectDetectionService : IObjectDetectionService
         {
             // 1. Preprocess image using injected preprocessor (platform-optimized)
             System.Diagnostics.Debug.WriteLine("[ObjectDetectionService] Starting inference...");
-            var (inputTensor, origWidth, origHeight, scaleX, scaleY) =
-                _preprocessor.Preprocess(imageBytes, _config.InputSize, filePath);
+            var prepResult = _preprocessor.Preprocess(imageBytes, _config.InputSize, filePath);
+            var inputTensor = prepResult.Tensor;
             
             System.Diagnostics.Debug.WriteLine(
-                $"[ObjectDetectionService] Image preprocessed: {origWidth}x{origHeight} -> " +
+                $"[ObjectDetectionService] Image preprocessed: {prepResult.OriginalWidth}x{prepResult.OriginalHeight} -> " +
                 $"tensor shape [{string.Join(", ", inputTensor.Dimensions.ToArray())}]");
 
             // 2. Create inference input
@@ -85,7 +85,7 @@ public class ObjectDetectionService : IObjectDetectionService
             }
 
             // 4. Post-process outputs
-            var detections = PostProcessResults(results, origWidth, origHeight, scaleX, scaleY);
+            var detections = PostProcessResults(results, prepResult);
 
             System.Diagnostics.Debug.WriteLine($"[ObjectDetectionService] ✓ Inference complete: {detections.Count} detections");
 
@@ -112,10 +112,7 @@ public class ObjectDetectionService : IObjectDetectionService
     /// </summary>
     private List<ObjectDetectionResult> PostProcessResults(
         IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results,
-        int originalWidth,
-        int originalHeight,
-        float scaleX,
-        float scaleY)
+        PreprocessingResult prepResult)
     {
         var detections = new List<ObjectDetectionResult>();
 
@@ -205,11 +202,18 @@ public class ObjectDetectionService : IObjectDetectionService
 
             detectedCount++;
 
-            // Scale coordinates back to original image size
-            float scaledX = x * scaleX;
-            float scaledY = y * scaleY;
-            float scaledW = w * scaleX;
-            float scaledH = h * scaleY;
+            detectedCount++;
+
+            // Scale coordinates back to original image size trying to undo letterboxing/padding
+            // (x - padX) * scale
+            // Clamp to avoid going outside image bounds
+            float scaledX = (x - prepResult.PadX) * prepResult.Scale;
+            float scaledY = (y - prepResult.PadY) * prepResult.Scale;
+            float scaledW = w * prepResult.Scale;
+            float scaledH = h * prepResult.Scale;
+
+            scaledX = Math.Clamp(scaledX, 0, prepResult.OriginalWidth);
+            scaledY = Math.Clamp(scaledY, 0, prepResult.OriginalHeight);
 
             // Create detection object
             var detection = new ObjectDetectionResult
@@ -223,12 +227,15 @@ public class ObjectDetectionService : IObjectDetectionService
                 Height = scaledH
             };
 
-            System.Diagnostics.Debug.WriteLine(
-                $"[ObjectDetectionService] ✓ Added detection: {detection.ClassName} " +
-                $"({detection.Confidence:P}) at ({detection.X:F1}, {detection.Y:F1}) [ClassId: {classId}]");
+            // Log only summary to avoid freezing VS with thousands of logs
+            // System.Diagnostics.Debug.WriteLine(
+            //    $"[ObjectDetectionService] ✓ Added detection: {detection.ClassName} " +
+            //    $"({detection.Confidence:P}) at ({detection.X:F1}, {detection.Y:F1}) [ClassId: {classId}]");
 
             detections.Add(detection);
         }
+        
+        System.Diagnostics.Debug.WriteLine($"[ObjectDetectionService] -> Processed {detectedCount} detections.");
 
         // Log top 10 predictions
         System.Diagnostics.Debug.WriteLine("[ObjectDetectionService] TOP 10 PREDICTIONS (all, regardless of threshold):");

@@ -8,14 +8,20 @@ namespace Archery.Shared.Services;
 /// Interface for image preprocessing (Resizing, Normalization, Tensorization).
 /// Allows platform-specific optimizations (e.g., native Android Bitmap APIs).
 /// </summary>
+public record PreprocessingResult(
+    DenseTensor<float> Tensor,
+    int OriginalWidth,
+    int OriginalHeight,
+    float Scale,
+    float PadX,
+    float PadY
+);
+
 public interface IImagePreprocessor
 {
     /// <summary>
     /// Processes image bytes into a normalized tensor ready for ONNX inference.
+    /// Returns the tensor and metadata for post-processing coordinates.
     /// </summary>
-    /// <param name="imageBytes">Raw image data (JPEG/PNG).</param>
-    /// <param name="inputSize">Target dimension (typically 640).</param>
-    /// <param name="filePath">Optional path to the image file (for metadata optimization).</param>
-    /// <returns>Preprocessed tensor and scaling metadata for post-processing.</returns>
-    (DenseTensor<float> Tensor, int OriginalWidth, int OriginalHeight, float ScaleX, float ScaleY) Preprocess(byte[] imageBytes, int inputSize, string? filePath = null);
+    PreprocessingResult Preprocess(byte[] imageBytes, int inputSize, string? filePath = null);
 }

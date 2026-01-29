@@ -19,6 +19,7 @@ namespace GoldTracker.Shared.UI.Components.Pages
         [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
         [Inject] private ISessionState SessionState { get; set; } = default!;
         [Inject] private ISessionService SessionService { get; set; } = default!;
+        [Inject] private IDatasetExportService DatasetExportService { get; set; } = default!;
 
         [SupplyParameterFromQuery] public Guid? sessionId { get; set; }
         [SupplyParameterFromQuery] public int? endIndex { get; set; }
@@ -201,7 +202,7 @@ namespace GoldTracker.Shared.UI.Components.Pages
                             startY = (double)(d.Y - halfH) / imgHeight,
                             endX = (double)(d.X + halfW) / imgWidth,
                             endY = (double)(d.Y + halfH) / imgHeight,
-                            label = d.ClassId == 10 ? "target" : (points == 0 ? "Miss" : points.ToString()),
+                            label = d.ClassId == 10 ? "TARGET" : (points == 0 ? "M" : points.ToString()),
                             color = GetScoreColor(points),
                             hidden = true
                         };
@@ -229,7 +230,7 @@ namespace GoldTracker.Shared.UI.Components.Pages
                             startY = c.StartY,
                             endX = c.EndX,
                             endY = c.EndY,
-                            label = c.CorrectedClassId == 10 ? "target" : (points == 0 ? "Miss" : points.ToString()),
+                            label = c.CorrectedClassId == 10 ? "TARGET" : (points == 0 ? "M" : points.ToString()),
                             color = GetScoreColor(points)
                         };
                     }).ToArray();
@@ -369,7 +370,7 @@ namespace GoldTracker.Shared.UI.Components.Pages
 
             try
             {
-                _analysisResult = await ImageProcessingService.AnalyzeTargetFromBytesAsync(_originalImageBytes, _originalImagePath);
+                _analysisResult = await ImageProcessingService.AnalyzeTargetFromBytesAsync(_originalImageBytes, null);
 
                 // Scale result up to original dimensions because analysis was on 1024 preview
                 if (_analysisResult != null && _originalImageBytes != null)
@@ -672,7 +673,7 @@ namespace GoldTracker.Shared.UI.Components.Pages
                 startY = startY,
                 endX = endX,
                 endY = endY,
-                label = points == 100 ? "Target" : (points == 0 ? "Miss" : points.ToString()),
+                label = points == 100 ? "TARGET" : (points == 0 ? "M" : points.ToString()),
                 color = GetScoreColor(points)
             };
             await JSRuntime.InvokeVoidAsync("annotator.addBox", "correction-canvas", boxJs);
@@ -847,7 +848,8 @@ namespace GoldTracker.Shared.UI.Components.Pages
                 8 or 7 => "#FF0000",  // Red
                 6 or 5 => "#2196F3",  // Blue
                 4 or 3 => "#333333",  // Black
-                _ => "#9E9E9E"        // White/Other
+                2 or 1 => "#FFFFFF",  // White
+                _ => "#9E9E9E"        // Miss/Other
             };
         }
 
@@ -886,7 +888,12 @@ namespace GoldTracker.Shared.UI.Components.Pages
                 SaveToHistory();
                 var correction = _corrections[_selectedCorrectionIndex];
                 correction.CorrectedClassId = MapPointsToClassId(points);
-                await JSRuntime.InvokeVoidAsync("annotator.updateBoxStyle", "correction-canvas", _selectedCorrectionIndex, GetScoreColor(points), points == 100 ? "target" : points.ToString());
+                
+                var jsIndex = GetJsIndex(_selectedCorrectionIndex);
+                if (jsIndex != -1)
+                {
+                    await JSRuntime.InvokeVoidAsync("annotator.updateBoxStyle", "correction-canvas", jsIndex, GetScoreColor(points), points == 100 ? "TARGET" : (points == 0 ? "M" : points.ToString()));
+                }
                 StateHasChanged();
             }
         }
@@ -899,8 +906,17 @@ namespace GoldTracker.Shared.UI.Components.Pages
             if (_selectedCorrectionIndex >= 0 && _selectedCorrectionIndex < _corrections.Count)
             {
                 SaveToHistory();
+                
+                // Important: Calculate JS index BEFORE marking as deleted, otherwise GetJsIndex returns -1
+                var jsIndex = GetJsIndex(_selectedCorrectionIndex);
+                
                 _corrections[_selectedCorrectionIndex].IsDeleted = true;
-                JSRuntime.InvokeVoidAsync("annotator.removeBox", "correction-canvas", _selectedCorrectionIndex);
+                
+                if (jsIndex != -1)
+                {
+                    JSRuntime.InvokeVoidAsync("annotator.removeBox", "correction-canvas", jsIndex);
+                }
+                
                 _selectedCorrectionIndex = -1;
                 _selectedNewScore = null;
                 StateHasChanged();
@@ -916,9 +932,13 @@ namespace GoldTracker.Shared.UI.Components.Pages
             var correction = _corrections[index];
             var points = MapClassIdToPoints(correction.CorrectedClassId);
             var color = GetScoreColor(points);
-            var label = points == 100 ? "Target" : (points == 0 ? "Miss" : points.ToString());
+            var label = points == 100 ? "TARGET" : (points == 0 ? "M" : points.ToString());
 
-            JSRuntime.InvokeVoidAsync("annotator.updateBoxStyle", "correction-canvas", index, color, label);
+            var jsIndex = GetJsIndex(index);
+            if (jsIndex != -1)
+            {
+                JSRuntime.InvokeVoidAsync("annotator.updateBoxStyle", "correction-canvas", jsIndex, color, label);
+            }
         }
 
         /// <summary>
@@ -935,52 +955,37 @@ namespace GoldTracker.Shared.UI.Components.Pages
         /// <summary>
         /// Exports corrected data to YOLO dataset format.
         /// </summary>
+        /// <summary>
+        /// Exports corrected data to YOLO dataset format using the shared service.
+        /// </summary>
         private async Task ExportToYoloDatasetAsync()
         {
             if (_originalImageBytes == null) return;
 
-            try
-            {
-                var hasPermission = await CameraService.RequestStorageWritePermissionAsync();
-                if (!hasPermission) return;
-
-                var timestamp = $"{DateTime.Now:yyyyMMdd_HHmmssfff}";
-                var microImageDir = Path.Combine("Export", "Micro_Model", "images");
-                var microLabelDir = Path.Combine("Export", "Micro_Model", "labels");
-
-                // Save micro model image
-                var microImagePath = await CameraService.SaveImageAsync(_originalImageBytes, $"{timestamp}.jpg", microImageDir);
-                if (string.IsNullOrEmpty(microImagePath)) return;
-
-                // Build label strings with new dataset class mapping
-                var labelStrings = new List<string>();
-                foreach (var correction in _corrections.Where(c => !c.IsDeleted))
+                try
                 {
-                    var x_center = (correction.StartX + correction.EndX) / 2.0;
-                    var y_center = (correction.StartY + correction.EndY) / 2.0;
-                    var width = correction.EndX - correction.StartX;
-                    var height = correction.EndY - correction.StartY;
+                    var datasetAnnotations = new List<DatasetAnnotation>();
 
-                    // Map to new dataset class IDs (swap 10 and 11)
-                    var correctionPoints = MapClassIdToPoints(correction.CorrectedClassId);
-                    int newClassId = MapPointsToNewDatasetClassId(correctionPoints);
+                    foreach (var correction in _corrections.Where(c => !c.IsDeleted))
+                    {
+                        datasetAnnotations.Add(new DatasetAnnotation
+                        {
+                            ClassId = correction.CorrectedClassId, // Pass pure internal ID (10=Target, 11=10pts)
+                            StartX = correction.StartX,
+                            StartY = correction.StartY,
+                            EndX = correction.EndX,
+                            EndY = correction.EndY
+                        });
+                    }
 
-                    labelStrings.Add($"{newClassId} {x_center:F6} {y_center:F6} {width:F6} {height:F6}");
+                    // Delegate to the shared service which handles Macro (Target extraction) and Micro (Cropping) exports
+                    await DatasetExportService.ExportDatasetAsync(_originalImageBytes, datasetAnnotations);
+                    Console.WriteLine($"[TargetCapture] Exported {datasetAnnotations.Count} corrections via DatasetExportService.");
                 }
-
-                if (labelStrings.Any())
-                {
-                    var microLabelPath = Path.Combine(Path.GetDirectoryName(microImagePath)!.Replace("images", "labels"), $"{timestamp}.txt");
-                    Directory.CreateDirectory(Path.GetDirectoryName(microLabelPath)!);
-                    await File.WriteAllTextAsync(microLabelPath, string.Join("\n", labelStrings));
-                    CameraService.TriggerMediaScanner(microLabelPath);
-                }
-
-                Console.WriteLine($"[TargetCapture] Exported corrections to YOLO dataset: {timestamp}");
-            }
-            catch (Exception ex)
+                catch (Exception ex)
             {
                 Console.WriteLine($"[TargetCapture] Export error: {ex.Message}");
+                Snackbar.Add($"Export failed: {ex.Message}", Severity.Error);
             }
         }
         
@@ -1029,7 +1034,7 @@ namespace GoldTracker.Shared.UI.Components.Pages
                         startY = c.StartY,
                         endX = c.EndX,
                         endY = c.EndY,
-                        label = points == 100 ? "Target" : (points == 0 ? "Miss" : points.ToString()),
+                        label = points == 100 ? "TARGET" : (points == 0 ? "M" : points.ToString()),
                         color = GetScoreColor(points)
                     };
                 }).ToArray();
@@ -1096,6 +1101,25 @@ namespace GoldTracker.Shared.UI.Components.Pages
             {
                 Navigation.NavigateTo("/capture");
             }
+        }
+
+        private int GetJsIndex(int cSharpIndex)
+        {
+            if (cSharpIndex < 0 || cSharpIndex >= _corrections.Count) return -1;
+            
+            // If the item itself is deleted, it doesn't have a JS index
+            if (_corrections[cSharpIndex].IsDeleted) return -1;
+
+            // Count how many non-deleted items are before this index
+            int count = 0;
+            for (int i = 0; i < cSharpIndex; i++)
+            {
+                if (!_corrections[i].IsDeleted)
+                {
+                    count++;
+                }
+            }
+            return count;
         }
 
         #endregion

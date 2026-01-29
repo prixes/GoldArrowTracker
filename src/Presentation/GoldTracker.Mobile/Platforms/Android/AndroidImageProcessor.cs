@@ -342,6 +342,9 @@ public static class AndroidImageProcessor
                 var bitmap = AndroidGraphics.BitmapFactory.DecodeByteArray(imageBytes, 0, imageBytes.Length, options);
                 if (bitmap == null) return imageBytes;
 
+                // Apply EXIF rotation to match what was used for inference
+                bitmap = ApplyExifRotation(bitmap, imageBytes);
+
                 // Ensure bitmap is mutable (DecodeByteArray might return immutable depending on options)
                 AndroidGraphics.Bitmap mutableBitmap;
                 if (!bitmap.IsMutable)
@@ -363,7 +366,7 @@ public static class AndroidImageProcessor
                 if (sourceWidth.HasValue && sourceWidth.Value > 0) scaleX = (float)mutableBitmap.Width / sourceWidth.Value;
                 if (sourceHeight.HasValue && sourceHeight.Value > 0) scaleY = (float)mutableBitmap.Height / sourceHeight.Value;
 
-                // Pains for drawing
+                // Paints for drawing
                 using var arrowPaint = new AndroidGraphics.Paint { Color = AndroidGraphics.Color.Green, StrokeWidth = 3 };
                 arrowPaint.SetStyle(AndroidGraphics.Paint.Style.Stroke);
                 
