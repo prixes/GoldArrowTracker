@@ -1,6 +1,3 @@
-using System;
-using System.Threading.Tasks;
-
 namespace GoldTracker.Shared.UI.Services.Abstractions;
 
 public interface IPreferenceService

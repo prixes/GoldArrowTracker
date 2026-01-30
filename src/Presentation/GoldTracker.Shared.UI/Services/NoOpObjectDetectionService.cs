@@ -1,7 +1,5 @@
 using Archery.Shared.Models;
 using Archery.Shared.Services;
-using System;
-using System.Collections.Generic;
 
 namespace GoldTracker.Shared.UI.Services
 {

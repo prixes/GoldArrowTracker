@@ -1,10 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using GoldTracker.Server.Data;
 using Microsoft.EntityFrameworkCore;
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using GoldTracker.Server.Services.Auth;
 
 namespace GoldTracker.Server.Auth;
 
@@ -16,7 +15,7 @@ public static class AuthEndpoints
             [FromBody] GoogleLoginRequest request,
             GoogleAuthService authService,
             AppDbContext db,
-            IConfiguration config) =>
+            ITokenService tokenService) => // Inject ITokenService
         {
             // 1. Validate Google Token
             var payload = await authService.ValidateTokenAsync(request.IdToken);
@@ -48,14 +47,14 @@ public static class AuthEndpoints
             user.LastLoginAt = DateTime.UtcNow;
             await db.SaveChangesAsync();
 
-            // 3. Generate App JWT
-            var token = GenerateJwt(user, config);
+            // 3. Generate App JWT using service
+            var token = tokenService.GenerateJwt(user);
 
             return Results.Ok(new AuthResponse(token, user.Email, user.DisplayName));
         });
 
         // Redirect Endpoint for WebAuthenticator or Browser
-        app.MapGet("/api/auth/login-redirect", (string? returnUrl, string? platform, IConfiguration config, HttpContext context, ILogger<AuthEndpoints> logger) => 
+        app.MapGet("/api/auth/login-redirect", (string? returnUrl, string? platform, IConfiguration config, HttpContext context, ILogger<GoogleAuthService> logger) => 
         {
             logger.LogInformation("Login redirect requested. Platform: {Platform}, ReturnUrl: {ReturnUrl}", platform, returnUrl);
             
@@ -82,9 +81,10 @@ public static class AuthEndpoints
             string? state,
             IConfiguration config, 
             HttpContext context,
-            ILogger<AuthEndpoints> logger,
+            ILogger<GoogleAuthService> logger,
             GoogleAuthService authService,
-            AppDbContext db) =>
+            AppDbContext db,
+            ITokenService tokenService) => // Inject ITokenService
         {
             logger.LogInformation("Google callback received. State: {State}", state);
             
@@ -116,7 +116,7 @@ public static class AuthEndpoints
             user.LastLoginAt = DateTime.UtcNow;
             await db.SaveChangesAsync();
 
-            var appToken = GenerateJwt(user, config);
+            var appToken = tokenService.GenerateJwt(user);
 
             // Handle Redirection based on state
             string platform = "mobile";
@@ -179,26 +179,6 @@ public static class AuthEndpoints
 
             return Results.Ok(new UserInfo(user.DisplayName ?? user.Email, user.Email, user.PictureUrl));
         }).RequireAuthorization();
-    }
-
-    private static string GenerateJwt(User user, IConfiguration config)
-    {
-        var keyString = config["Jwt:Key"] ?? "super_secret_key_that_is_long_enough_for_hmac_sha256";
-        var key = Encoding.ASCII.GetBytes(keyString);
-        
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var tokenDescriptor = new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity(new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Email, user.Email)
-            }),
-            Expires = DateTime.UtcNow.AddDays(30),
-            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-        };
-        var token = tokenHandler.CreateToken(tokenDescriptor);
-        return tokenHandler.WriteToken(token);
     }
 }
 

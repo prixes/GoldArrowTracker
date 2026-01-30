@@ -37,8 +37,26 @@ public class LocalFileSystemStorageService : IBlobStorageService
 
         _logger.LogInformation("Writing file to {FilePath}", fullFilePath);
         
-        using var fileStream = new FileStream(fullFilePath, FileMode.Create, FileAccess.Write);
-        await content.CopyToAsync(fileStream);
+        // Simple retry policy for handling file locks
+        int maxRetries = 3;
+        int delay = 100;
+
+        for (int i = 0; i < maxRetries; i++)
+        {
+            try
+            {
+                using var fileStream = new FileStream(fullFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
+                await content.CopyToAsync(fileStream);
+                return;
+            }
+            catch (IOException ex) when (i < maxRetries - 1)
+            {
+                _logger.LogWarning($"File lock encountered for {blobName}, retrying ({i + 1}/{maxRetries})... Details: {ex.Message}");
+                await Task.Delay(delay);
+                delay *= 2; // Exponential backoff
+                content.Position = 0; // Reset stream position for retry
+            }
+        }
     }
 
     public Task<Stream> GetBlobAsync(string container, string blobName)

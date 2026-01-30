@@ -1,7 +1,5 @@
 using Archery.Shared.Models;
 using GoldTracker.Shared.UI.Models;
-using System.Threading.Tasks;
-using System;
 
 namespace GoldTracker.Shared.UI.Services.Abstractions;
 

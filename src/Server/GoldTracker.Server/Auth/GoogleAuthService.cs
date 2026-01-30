@@ -7,14 +7,13 @@ public class GoogleAuthService
 {
     private readonly ILogger<GoogleAuthService> _logger;
     private readonly IConfiguration _configuration;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    private readonly HttpClient _httpClient;
-
-    public GoogleAuthService(ILogger<GoogleAuthService> logger, IConfiguration configuration)
+    public GoogleAuthService(ILogger<GoogleAuthService> logger, IConfiguration configuration, IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
         _configuration = configuration;
-        _httpClient = new HttpClient();
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task<string?> ExchangeCodeForTokenAsync(string code, string redirectUri)
@@ -33,7 +32,8 @@ public class GoogleAuthService
                 { "grant_type", "authorization_code" }
             });
 
-            var response = await _httpClient.PostAsync("https://oauth2.googleapis.com/token", content);
+            using var httpClient = _httpClientFactory.CreateClient();
+            var response = await httpClient.PostAsync("https://oauth2.googleapis.com/token", content);
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogError("Failed to exchange code: {Reason}", response.ReasonPhrase);
@@ -62,7 +62,10 @@ public class GoogleAuthService
             var webClientId = _configuration["Authentication:Google:ClientId"];
             var clientIds = _configuration.GetSection("Authentication:Google:ClientIds").Get<List<string>>() ?? new List<string>();
             
-            if (!string.IsNullOrEmpty(webClientId)) clientIds.Add(webClientId);
+            if (!string.IsNullOrEmpty(webClientId)) 
+            {
+                clientIds.Add(webClientId);
+            }
 
             var settings = new GoogleJsonWebSignature.ValidationSettings
             {

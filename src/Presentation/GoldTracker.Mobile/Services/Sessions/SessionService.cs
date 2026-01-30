@@ -3,12 +3,11 @@ using Archery.Shared.Models;
 using Archery.Shared.Services;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
-using Microsoft.Extensions.Configuration;
 using System.Collections.Concurrent;
-using GoldTracker.Shared.UI;
 using GoldTracker.Shared.UI.Services.Abstractions;
 using GoldTracker.Shared.UI.Models;
-using GoldTracker.Shared.UI.Services.Abstractions;
+
+using Microsoft.Extensions.Configuration;
 
 namespace GoldTracker.Mobile.Services.Sessions
 {
@@ -16,23 +15,36 @@ namespace GoldTracker.Mobile.Services.Sessions
     {
         private readonly string _sessionsDir;
         private readonly IServerAuthService _authService;
-        private readonly HttpClient _httpClient;
-
-        public SessionService(IServerAuthService authService, IConfiguration config)
+        private readonly IConfiguration _apiConfiguration;
+        private static readonly HttpClient _sharedHttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        public SessionService(IServerAuthService authService, IConfiguration configuration)
         {
             _authService = authService;
-            var serverUrl = config["Settings:ServerUrl"] ?? "http://localhost:5000";
-
-            _httpClient = new HttpClient { 
-                BaseAddress = new Uri(serverUrl),
-                Timeout = TimeSpan.FromMinutes(5) // Allow time for large image syncs on slow connections
-            };
-
+            _apiConfiguration = configuration;
+            
             _sessionsDir = Path.Combine(FileSystem.AppDataDirectory, "sessions");
             if (!Directory.Exists(_sessionsDir))
             {
                 Directory.CreateDirectory(_sessionsDir);
             }
+        }
+
+        private string GetServerUrl() => Preferences.Get("ServerUrl", _apiConfiguration["Settings:ServerUrl"] ?? "http://localhost:5000");
+
+        private HttpClient ConfigureClient(string token)
+        {
+            var currentUrl = GetServerUrl();
+            if (!currentUrl.EndsWith("/")) currentUrl += "/";
+
+            // MAUI Note: Using a static shared HttpClient to avoid socket exhaustion.
+            if (_sharedHttpClient.BaseAddress == null || 
+                !_sharedHttpClient.BaseAddress.AbsoluteUri.Equals(currentUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                 _sharedHttpClient.BaseAddress = new Uri(currentUrl);
+            }
+
+            _sharedHttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            return _sharedHttpClient;
         }
 
         public async Task<List<Session>> GetSessionsAsync()
@@ -149,7 +161,8 @@ namespace GoldTracker.Mobile.Services.Sessions
             var token = await _authService.GetAccessTokenAsync();
             if (string.IsNullOrEmpty(token)) return false;
 
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            _ = ConfigureClient(token);
+            var httpClient = _sharedHttpClient;
 
             try
             {
@@ -165,7 +178,7 @@ namespace GoldTracker.Mobile.Services.Sessions
                     }
                 }
 
-                var response = await _httpClient.PostAsJsonAsync("/api/sessions", sessionToUpload);
+                var response = await httpClient.PostAsJsonAsync("/api/sessions", sessionToUpload);
                 if (!response.IsSuccessStatusCode) 
                 {
                     System.Diagnostics.Debug.WriteLine($"[SessionSync] Session upload failed: {response.ReasonPhrase}");
@@ -195,7 +208,7 @@ namespace GoldTracker.Mobile.Services.Sessions
                             content.Add(new StreamContent(fileStream), "file", cleanName);
 
                             // We upload to the 'clean' name on the server
-                            var imgResponse = await _httpClient.PostAsync($"/api/sessions/{session.Id}/images/{encodedFileName}", content, ct);
+                            var imgResponse = await httpClient.PostAsync($"/api/sessions/{session.Id}/images/{encodedFileName}", content, ct);
                             
                             if (!imgResponse.IsSuccessStatusCode)
                             {
@@ -231,7 +244,8 @@ namespace GoldTracker.Mobile.Services.Sessions
             var token = await _authService.GetAccessTokenAsync();
             if (string.IsNullOrEmpty(token)) return 0;
 
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            _ = ConfigureClient(token);
+            var httpClient = _sharedHttpClient;
             int importedCount = 0;
 
             try
@@ -239,7 +253,7 @@ namespace GoldTracker.Mobile.Services.Sessions
                 progress?.Report(new SyncProgress(0, "Fetching session list..."));
                 
                 // 1. Get List of Sessions from Server
-                var sessions = await _httpClient.GetFromJsonAsync<List<Session>>("/api/sessions");
+                var sessions = await httpClient.GetFromJsonAsync<List<Session>>("/api/sessions");
                 if (sessions == null || sessions.Count == 0) return 0;
 
                 // 2. Filter new sessions
@@ -287,7 +301,7 @@ namespace GoldTracker.Mobile.Services.Sessions
                                   try 
                                   {
                                       var imageUrl = $"/api/sessions/{serverSession.Id}/images/{encodedFileName}";
-                                      var imgBytes = await _httpClient.GetByteArrayAsync(imageUrl, ct);
+                                      var imgBytes = await httpClient.GetByteArrayAsync(imageUrl, ct);
                                       await File.WriteAllBytesAsync(localPath, imgBytes, ct);
                                       end.ImagePath = localPath; // Update path
                                       System.Diagnostics.Debug.WriteLine($"[SessionSync] Downloaded image: {cleanName}");
@@ -317,7 +331,7 @@ namespace GoldTracker.Mobile.Services.Sessions
             return importedCount;
         }
 
-        private string GetCleanFileName(string path, Guid sessionId)
+        private string GetCleanFileName(string? path, Guid sessionId)
         {
             if (string.IsNullOrEmpty(path)) return string.Empty;
             

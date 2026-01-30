@@ -3,10 +3,7 @@ using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
 using GoldTracker.Mobile.Services;
 using GoldTracker.Mobile.Services.Sessions;
-using Archery.Shared.Models;
 using Archery.Shared.Services;
-
-using GoldTracker.Shared.UI;
 using GoldTracker.Shared.UI.Services;
 using GoldTracker.Shared.UI.Services.Abstractions;
 

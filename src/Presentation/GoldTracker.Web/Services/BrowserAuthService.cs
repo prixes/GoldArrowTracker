@@ -1,11 +1,8 @@
 using GoldTracker.Shared.UI.Services.Abstractions;
 using GoldTracker.Shared.UI.Models;
 using Microsoft.JSInterop;
-using System;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Components;
 
 namespace GoldTracker.Web.Services;

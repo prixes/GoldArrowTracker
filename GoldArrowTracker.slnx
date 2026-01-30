@@ -6,11 +6,16 @@
     <Project Path="src/Edge/GoldTracker.Edge/GoldTracker.Edge.csproj" />
   </Folder>
   <Folder Name="/Presentation/">
-    <Project Path="src/Presentation/GoldTracker.Mobile/GoldTracker.Mobile.csproj" />
+    <Project Path="src/Presentation/GoldTracker.Mobile/GoldTracker.Mobile.csproj">
+      <Deploy Solution="Debug|*" />
+    </Project>
     <Project Path="src/Presentation/GoldTracker.Shared.UI/GoldTracker.Shared.UI.csproj" />
     <Project Path="src/Presentation/GoldTracker.Web/GoldTracker.Web.csproj" />
   </Folder>
   <Folder Name="/Server/">
     <Project Path="src/Server/GoldTracker.Server/GoldTracker.Server.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
   </Folder>
 </Solution>

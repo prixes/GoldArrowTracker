@@ -6,7 +6,6 @@ using Microsoft.JSInterop;
 using System.Text.Json;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
-using GoldTracker.Shared.UI;
 using GoldTracker.Shared.UI.Models;
 using GoldTracker.Shared.UI.Services.Abstractions;
 

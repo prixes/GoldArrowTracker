@@ -24,22 +24,11 @@ namespace GoldTracker.Shared.UI.Components.Pages.Sessions
         private bool _showEllipse = true; // Still using this name but drawing a circle
         
         private int _confidencePercentage = 80;
-        private ChartOptions _lineChartOptions = new() 
-        { 
-            YAxisLines = true, 
-            XAxisLines = true, 
-            InterpolationOption = InterpolationOption.NaturalSpline,
-            MaxNumYAxisTicks = 10,
-            YAxisTicks = 5
-        };
 
         // Analysis Data
         private Dictionary<int, int> _scoreDistribution = new();
         private List<ZoneHit> _zoneHits = new();
-        
-        // Chart Data
-        private List<ChartSeries> _endsEvolutionSeries = new();
-        private string[] _endsEvolutionLabels = Array.Empty<string>();
+       
 
         private record ArrowPoint(float X, float Y, int Score, int EndIndex, int ArrowIndex)
         {
@@ -279,16 +268,5 @@ namespace GoldTracker.Shared.UI.Components.Pages.Sessions
             Navigation.NavigateTo($"/session/{SessionId}");
         }
 
-        private MudBlazor.Color GetArrowColor(int points)
-        {
-            return points switch
-            {
-                100 or 10 or 9 => MudBlazor.Color.Warning,
-                8 or 7 => MudBlazor.Color.Error,
-                6 or 5 => MudBlazor.Color.Info,
-                4 or 3 => MudBlazor.Color.Dark,
-                _ => MudBlazor.Color.Default
-            };
-        }
     }
 }

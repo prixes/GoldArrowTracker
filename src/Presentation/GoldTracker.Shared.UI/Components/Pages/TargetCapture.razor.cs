@@ -1,7 +1,4 @@
-using System.Collections.Generic;
-using System.Linq;
 using Archery.Shared.Models;
-// using GoldTracker.Mobile.Services; // Removed
 using GoldTracker.Shared.UI.Services.Abstractions;
 using Archery.Shared.Services;
 using Microsoft.AspNetCore.Components;
@@ -241,8 +238,6 @@ namespace GoldTracker.Shared.UI.Components.Pages
                 System.Diagnostics.Debug.WriteLine($"[TargetCapture] Loaded {boxesForJs.Length} boxes into correction-canvas");
             }
         }
-
-
 
         private async Task LoadStoredImagesAsync()
         {

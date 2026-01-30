@@ -1,11 +1,5 @@
-
 using Archery.Shared.Models;
 using GoldTracker.Shared.UI.Services.Abstractions;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using System.Linq;
-using System.IO;
-using System;
 
 namespace GoldTracker.Shared.UI.Services
 {
@@ -13,6 +7,9 @@ namespace GoldTracker.Shared.UI.Services
     {
         private readonly ICameraService _cameraService;
         private readonly IPlatformImageService _imageProcessingService;
+
+        private const string ImagesDirName = "images";
+        private const string LabelsDirName = "labels";
 
         public DatasetExportService(ICameraService cameraService, IPlatformImageService imageProcessingService)
         {
@@ -36,7 +33,7 @@ namespace GoldTracker.Shared.UI.Services
             var timestamp = $"{DateTime.Now:yyyyMMdd_HHmmssfff}";
 
             // --- 1. Macro Model (Targets) ---
-            var macroImageDir = Path.Combine("Export", "Macro_Model", "images");
+            var macroImageDir = Path.Combine("Export", "Macro_Model", ImagesDirName);
             
             // Filter for targets using INTERNAL ID (10)
             // Application Internal: 10 = Target, 11 = 10pts
@@ -57,36 +54,7 @@ namespace GoldTracker.Shared.UI.Services
                 var macroImagePath = await _cameraService.SaveImageAsync(originalImageBytes, $"{timestamp}.jpg", macroImageDir);
                 if (!string.IsNullOrEmpty(macroImagePath))
                 {
-                    // Calculate label path based on image path (standard YOLO structure)
-                    // Assumption: SaveImageAsync creates the directory structure
-                    // On Mobile: storage/Export/Macro_Model/images/file.jpg -> storage/Export/Macro_Model/labels/file.txt
-                    
-                    var labelDir = Path.Combine("Export", "Macro_Model", "labels");
-                    
-                    string macroLabelPath;
-                    var directoryName = Path.GetDirectoryName(macroImagePath);
-                    if (directoryName != null && directoryName.EndsWith("images", StringComparison.OrdinalIgnoreCase))
-                    {
-                         // Standard structure
-                         var labelDirFull = directoryName.Replace("images", "labels", StringComparison.OrdinalIgnoreCase);
-                         if (!Directory.Exists(labelDirFull))
-                         {
-                             try { Directory.CreateDirectory(labelDirFull); } catch {} // Try create if local
-                         }
-                         macroLabelPath = Path.Combine(labelDirFull, $"{timestamp}.txt");
-                    }
-                    else
-                    {
-                        macroLabelPath = macroImagePath.Replace(".jpg", ".txt").Replace("images", "labels");
-                        
-                        // Ensure directory exists for label if we just computed it
-                        var checkDir = Path.GetDirectoryName(macroLabelPath);
-                         if (!Directory.Exists(checkDir))
-                         {
-                             try { Directory.CreateDirectory(checkDir); } catch {} 
-                         }
-                    }
-
+                    string macroLabelPath = GetLabelPath(macroImagePath, timestamp);
                     await _cameraService.WriteFileTextAsync(macroLabelPath, string.Join("\n", targetStrings));
                     _cameraService.TriggerMediaScanner(macroLabelPath);
                 }
@@ -99,7 +67,7 @@ namespace GoldTracker.Shared.UI.Services
                  await Task.Run(async () =>
                  {
                     // Full path to image directory for micro model
-                    var microImageDir = Path.Combine("Export", "Micro_Model", "images");
+                    var microImageDir = Path.Combine("Export", "Micro_Model", ImagesDirName);
                     
                     double padding = 0.05; // 5% padding around target
 
@@ -178,28 +146,39 @@ namespace GoldTracker.Shared.UI.Services
 
                         if (microStrings.Any())
                         {
-                            // Calculate label path similar to above
-                            string microLabelPath;
-                            var dirName = Path.GetDirectoryName(microImagePath);
-                             if (dirName != null && dirName.EndsWith("images", StringComparison.OrdinalIgnoreCase))
-                            {
-                                 var labelDirFull = dirName.Replace("images", "labels", StringComparison.OrdinalIgnoreCase);
-                                 if (!Directory.Exists(labelDirFull)) try { Directory.CreateDirectory(labelDirFull); } catch {}
-                                 microLabelPath = Path.Combine(labelDirFull, $"{cropFileName}.txt");
-                            }
-                            else
-                            {
-                                microLabelPath = microImagePath.Replace(".jpg", ".txt").Replace("images", "labels");
-                                var checkDir = Path.GetDirectoryName(microLabelPath);
-                                if (!Directory.Exists(checkDir)) try { Directory.CreateDirectory(checkDir); } catch {} 
-                            }
-                            
+                            string microLabelPath = GetLabelPath(microImagePath, cropFileName);
                             await _cameraService.WriteFileTextAsync(microLabelPath, string.Join("\n", microStrings));
                             _cameraService.TriggerMediaScanner(microLabelPath);
                         }
                     }
                  });
             }
+        }
+
+        private string GetLabelPath(string imagePath, string fileNameWithoutExt)
+        {
+            var directoryName = Path.GetDirectoryName(imagePath);
+            if (directoryName != null && directoryName.EndsWith(ImagesDirName, StringComparison.OrdinalIgnoreCase))
+            {
+                 // Standard structure
+                 var labelDirFull = directoryName.Replace(ImagesDirName, LabelsDirName, StringComparison.OrdinalIgnoreCase);
+                 if (!Directory.Exists(labelDirFull))
+                 {
+                     Directory.CreateDirectory(labelDirFull);
+                 }
+                 return Path.Combine(labelDirFull, $"{fileNameWithoutExt}.txt");
+            }
+            
+            // Fallback/Legacy structure
+            var legacyPath = imagePath.Replace(".jpg", ".txt").Replace(ImagesDirName, LabelsDirName);
+            
+            // Ensure directory exists for label if we just computed it
+            var checkDir = Path.GetDirectoryName(legacyPath);
+            if (!string.IsNullOrEmpty(checkDir) && !Directory.Exists(checkDir))
+            {
+                 Directory.CreateDirectory(checkDir);
+            }
+            return legacyPath;
         }
     }
 }

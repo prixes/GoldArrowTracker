@@ -1,15 +1,8 @@
 using System.Net.Http.Json;
-using System.Text.Json;
-using Microsoft.Maui.Storage;
-
 using Microsoft.Extensions.Configuration;
 using GoldTracker.Shared.UI.Models;
 using System.Net.Http.Headers;
-
 using GoldTracker.Shared.UI.Services.Abstractions;
-using GoldTracker.Shared.UI;
-
-using Microsoft.Maui.Authentication;
 
 namespace GoldTracker.Mobile.Services;
 
@@ -26,8 +19,19 @@ public class ServerAuthService : IServerAuthService
     public ServerAuthService(IConfiguration configuration)
     {
         _configuration = configuration;
-        var serverUrl = configuration["Settings:ServerUrl"] ?? "http://localhost:5000";
-        _httpClient = new HttpClient { BaseAddress = new Uri(serverUrl) };
+        // Do not set BaseAddress here as it might change
+        _httpClient = new HttpClient();
+    }
+
+    private string GetServerUrl() => Preferences.Get("ServerUrl", _configuration["Settings:ServerUrl"] ?? "http://localhost:5000");
+
+    private void ConfigureClient()
+    {
+        var serverUrl = GetServerUrl();
+        if (_httpClient.BaseAddress == null || !_httpClient.BaseAddress.AbsoluteUri.TrimEnd('/').Equals(serverUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+        {
+             _httpClient.BaseAddress = new Uri(serverUrl);
+        }
     }
 
     public bool IsAuthenticated => !string.IsNullOrEmpty(_accessToken);
@@ -46,6 +50,7 @@ public class ServerAuthService : IServerAuthService
             _accessToken = await Task.Run(() => SecureStorage.Default.GetAsync(TokenKey));
             if (!string.IsNullOrEmpty(_accessToken))
             {
+                ConfigureClient(); // Ensure client is configured
                 _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
                 await GetUserInfoAsync();
                 OnSignedIn?.Invoke();
@@ -105,9 +110,7 @@ public class ServerAuthService : IServerAuthService
     {
         try
         {
-            // For Android Emulator (10.0.2.2) vs Device (Actual IP or via Tunnel)
-            // The configuration should handle this.
-            var serverUrl = _configuration["Settings:ServerUrl"] ?? "http://10.0.2.2:5000";
+            var serverUrl = GetServerUrl(); // Use Preferences
             var authUrl = $"{serverUrl}/api/auth/login-redirect"; 
             
             var result = await WebAuthenticator.Default.AuthenticateAsync(

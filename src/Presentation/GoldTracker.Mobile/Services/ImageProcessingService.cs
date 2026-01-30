@@ -1,14 +1,12 @@
 // Copyright (c) GoldArrowTracker. Licensed under the GNU AFFERO GENERAL PUBLIC LICENSE v3.0
 
-global using SixLabors.ImageSharp;
+using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using Archery.Shared.Services;
 using Archery.Shared.Models;
 using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.Drawing;
-using SixLabors.Fonts;
-using Color = SixLabors.ImageSharp.Color;
 using GoldTracker.Shared.UI.Services.Abstractions;
 
 namespace GoldTracker.Mobile.Services;
@@ -22,9 +20,6 @@ public class ImageProcessingService : IPlatformImageService
     private readonly ITargetScoringService? _targetScoringService;
     private readonly ObjectDetectionConfig _objectDetectionConfig;
     
-    private SixLabors.Fonts.Font? _cachedFont;
-    private readonly SemaphoreSlim _fontLock = new(1, 1);
-
     /// <summary>
     /// Gets the Object Detection configuration used by the service.
     /// </summary>
@@ -132,16 +127,13 @@ public class ImageProcessingService : IPlatformImageService
                 }
 
                 // If non-android drawing logic is needed with scaling, it would be implemented here.
-                // For now, мы фокусируемся на Android.
-
-                var font = await GetFontAsync();
-
+                
                 // Simplify fallback drawing for non-Android
                 foreach (var detection in analysisResult.ArrowScores)
                 {
                     float x = detection.Detection.CenterX;
                     float y = detection.Detection.CenterY;
-                    image.Mutate(ctx => ctx.Draw(Color.Red, 2, new EllipsePolygon(x, y, 10)));
+                    image.Mutate(ctx => ctx.Draw(SixLabors.ImageSharp.Color.Red, 2, new EllipsePolygon(x, y, 10)));
                 }
                 
                 using var ms = new System.IO.MemoryStream();
@@ -201,32 +193,6 @@ public class ImageProcessingService : IPlatformImageService
         }
         catch { return (1024, 1024); }
 #endif
-    }
-
-    private async Task<SixLabors.Fonts.Font> GetFontAsync()
-    {
-        if (_cachedFont != null) return _cachedFont;
-
-        await _fontLock.WaitAsync();
-        try
-        {
-            if (_cachedFont != null) return _cachedFont;
-
-            var fontCollection = new FontCollection();
-            using var fontStream = await FileSystem.OpenAppPackageFileAsync("OpenSans-Regular.ttf");
-            
-            using var memoryStream = new System.IO.MemoryStream();
-            await fontStream.CopyToAsync(memoryStream);
-            memoryStream.Position = 0;
-            
-            var fontFamily = fontCollection.Add(memoryStream);
-            _cachedFont = fontFamily.CreateFont(24, FontStyle.Bold);
-            return _cachedFont;
-        }
-        finally
-        {
-            _fontLock.Release();
-        }
     }
 
     /// <summary>
@@ -296,7 +262,7 @@ public class ImageProcessingService : IPlatformImageService
 
                 if (w <= 0 || h <= 0) return Array.Empty<byte>();
 
-                image.Mutate(ctx => ctx.Crop(new SixLabors.ImageSharp.Rectangle(x, y, w, h)));
+                image.Mutate(ctx => ctx.Crop(new Rectangle(x, y, w, h)));
 
                 using var ms = new System.IO.MemoryStream();
                 await image.SaveAsJpegAsync(ms);
@@ -357,7 +323,7 @@ public class ImageProcessingService : IPlatformImageService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ImageProcessing] Error resizing: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[ImageProcessing] Error resizing: {ex.Message}");
                 return imageBytes; // Return original on error
             }
         });
@@ -374,7 +340,7 @@ public class ImageProcessingService : IPlatformImageService
     /// Crops an image based on normalized coordinates (0-1) using a pre-loaded Image object.
     /// This is much more efficient when performing multiple crops on the same source image.
     /// </summary>
-    public async Task<byte[]> CropImageAsync(SixLabors.ImageSharp.Image<Rgba32> sourceImage, double startXNorm, double startYNorm, double widthNorm, double heightNorm)
+    public async Task<byte[]> CropImageAsync(Image<Rgba32> sourceImage, double startXNorm, double startYNorm, double widthNorm, double heightNorm)
     {
         int x = (int)(startXNorm * sourceImage.Width);
         int y = (int)(startYNorm * sourceImage.Height);
@@ -390,7 +356,7 @@ public class ImageProcessingService : IPlatformImageService
         if (w <= 0 || h <= 0) return Array.Empty<byte>();
 
         // Clone the region to avoid modifying the source
-        using var croppedImage = sourceImage.Clone(ctx => ctx.Crop(new SixLabors.ImageSharp.Rectangle(x, y, w, h)));
+        using var croppedImage = sourceImage.Clone(ctx => ctx.Crop(new Rectangle(x, y, w, h)));
 
         using var ms = new System.IO.MemoryStream();
         // Use quality 60 for faster encoding (was using default 75)
@@ -425,7 +391,10 @@ public class ImageProcessingService : IPlatformImageService
                 return await System.IO.File.ReadAllBytesAsync(path);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ImageProcessingService] Failed to load image: {ex.Message}");
+        }
         return Array.Empty<byte>();
     }
     public async Task<string> GetImageDisplaySourceAsync(byte[] imageBytes, TargetAnalysisResult? analysisResult = null, string? filePath = null)

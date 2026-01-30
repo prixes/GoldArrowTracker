@@ -7,7 +7,6 @@ using GoldTracker.Shared.UI.Services.Abstractions;
 using GoldTracker.Shared.UI.Services;
 using Archery.Shared.Models;
 using Archery.Shared.Services;
-using GoldTracker.Shared.UI;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -31,9 +30,7 @@ builder.Services.AddScoped(sp =>
 builder.Services.AddMudServices();
 
 // Register platform-specific services
-// builder.Services.AddScoped<IMediaPickerService, BrowserMediaPickerService>();
 builder.Services.AddScoped<IPlatformImageService, BrowserImageService>();
-// builder.Services.AddScoped<IFileStorageService, BrowserFileStorageService>();
 builder.Services.AddScoped<ICameraService, WebCameraService>();
 builder.Services.AddScoped<IServerAuthService, BrowserAuthService>();
 

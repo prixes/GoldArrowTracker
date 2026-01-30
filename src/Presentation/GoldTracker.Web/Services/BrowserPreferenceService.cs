@@ -1,7 +1,5 @@
 using GoldTracker.Shared.UI.Services.Abstractions;
 using Microsoft.JSInterop;
-using System;
-using System.Threading.Tasks;
 
 namespace GoldTracker.Web.Services;
 

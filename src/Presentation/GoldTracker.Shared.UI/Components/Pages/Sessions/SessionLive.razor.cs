@@ -94,18 +94,6 @@ namespace GoldTracker.Shared.UI.Components.Pages.Sessions
             }
         }
 
-        private MudBlazor.Color GetArrowColor(int points)
-        {
-            return points switch
-            {
-                10 or 9 => MudBlazor.Color.Warning, // Gold
-                8 or 7 => MudBlazor.Color.Error,   // Red
-                6 or 5 => MudBlazor.Color.Info,    // Blue
-                4 or 3 => MudBlazor.Color.Dark,    // Black
-                _ => MudBlazor.Color.Default       // White/Miss
-            };
-        }
-
         private string GetArrowHexColor(int points) => points switch {
             100 or 10 or 9 => "#FFEB3B", // Gold/Yellow
             8 or 7 => "#F44336",         // Red

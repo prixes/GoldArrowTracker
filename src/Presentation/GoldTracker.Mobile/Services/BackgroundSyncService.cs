@@ -1,7 +1,4 @@
-using GoldTracker.Mobile.Services.Sessions;
 using GoldTracker.Shared.UI.Services.Abstractions;
-using GoldTracker.Shared.UI.Models;
-using GoldTracker.Shared.UI;
 using Archery.Shared.Services;
 using System.Diagnostics;
 

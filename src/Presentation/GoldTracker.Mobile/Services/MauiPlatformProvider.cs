@@ -1,5 +1,4 @@
 using GoldTracker.Shared.UI.Services.Abstractions;
-using Microsoft.Maui.Devices;
 
 namespace GoldTracker.Mobile.Services;
 

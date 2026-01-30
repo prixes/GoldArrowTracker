@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MudBlazor;
-using GoldTracker.Shared.UI;
 using GoldTracker.Shared.UI.Services.Abstractions;
 using Archery.Shared.Services;
 
@@ -17,7 +16,7 @@ namespace GoldTracker.Shared.UI.Components.Layout
 
         private MudThemeProvider _mudThemeProvider = default!;
         private bool _isDarkMode = false;
-        private bool _isCheckingAuth = true;
+
         private MudTheme _theme = new MudTheme()
         {
             PaletteLight = new PaletteLight() { Primary = Colors.Amber.Darken3, Secondary = Colors.DeepOrange.Lighten1, Background = Colors.Gray.Lighten5 },
@@ -80,7 +79,7 @@ namespace GoldTracker.Shared.UI.Components.Layout
 
             await Task.WhenAll(authTask, sessionTask);
             
-            _isCheckingAuth = false;
+
 
             // Only redirect to login if we aren't already there AND we aren't authenticated
             var currentUri = new Uri(Navigation.Uri);

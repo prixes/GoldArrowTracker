@@ -1,6 +1,5 @@
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Configuration;
-using GoldTracker.Shared.UI;
 using GoldTracker.Shared.UI.Models;
 using GoldTracker.Shared.UI.Services.Abstractions;
 
@@ -9,26 +8,29 @@ namespace GoldTracker.Mobile.Services.Sessions;
 public class DatasetSyncService : IDatasetSyncService
 {
     private readonly IServerAuthService _authService;
-    private readonly HttpClient _httpClient;
+    private readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
     private readonly IPathService _pathService;
+
+    private readonly IConfiguration _configuration;
 
     public DatasetSyncService(IServerAuthService authService, IConfiguration config, IPathService pathService)
     {
         _authService = authService;
         _pathService = pathService;
-        var serverUrl = config["Settings:ServerUrl"] ?? "http://localhost:5000";
+        _configuration = config;
+    }
 
-#if ANDROID
-        if (serverUrl.Contains("localhost") || serverUrl.Contains("127.0.0.1"))
+    private string GetServerUrl() => Preferences.Get("ServerUrl", _configuration["Settings:ServerUrl"] ?? "http://localhost:5000");
+
+    private HttpClient CreateClient()
+    {
+        var serverUrl = GetServerUrl();
+        
+        if (_httpClient.BaseAddress == null || !_httpClient.BaseAddress.AbsoluteUri.TrimEnd('/').Equals(serverUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
         {
-            serverUrl = serverUrl.Replace("localhost", "10.0.2.2").Replace("127.0.0.1", "10.0.2.2");
+             _httpClient.BaseAddress = new Uri(serverUrl);
         }
-#endif
-
-        _httpClient = new HttpClient { 
-            BaseAddress = new Uri(serverUrl),
-            Timeout = TimeSpan.FromMinutes(5)
-        };
+        return _httpClient;
     }
 
     public async Task<int> SyncExportedDatasetsAsync(IProgress<SyncProgress>? progress = null)
@@ -37,6 +39,7 @@ public class DatasetSyncService : IDatasetSyncService
         var token = await _authService.GetAccessTokenAsync();
         if (string.IsNullOrEmpty(token)) return 0;
 
+        CreateClient(); // Ensure BaseAddress is up to date
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         return await Task.Run(async () => 

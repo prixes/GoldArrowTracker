@@ -3,8 +3,6 @@ using Archery.Shared.Models;
 using GoldTracker.Server.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Http;
 
 namespace GoldTracker.Server.Api;
 
@@ -80,16 +78,27 @@ public static class SessionEndpoints
             ClaimsPrincipal user,
             ILoggerFactory loggerFactory) =>
         {
+            var logger = loggerFactory.CreateLogger("SessionEndpoints");
             var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId)) return Results.Unauthorized();
+            
+            logger.LogInformation("Session List Request. UserID from Claim: {UserId}. Authenticated: {IsAuth}", userId, user.Identity?.IsAuthenticated);
+
+            if (string.IsNullOrEmpty(userId)) 
+            {
+                logger.LogWarning("Unauthorized: No UserID claim found.");
+                return Results.Unauthorized();
+            }
 
             // List blobs in "sessions/{userId}"
             var containerPath = $"sessions/{userId}";
             var files = await storage.ListBlobsAsync(containerPath);
+            var fileList = files.ToList();
+            
+            logger.LogInformation("Searching for sessions in {Path}. Found {Count} files.", containerPath, fileList.Count);
             
             var sessions = new List<Session>();
 
-            foreach (var file in files)
+            foreach (var file in fileList)
             {
                 if (file.EndsWith(".json"))
                 {
@@ -99,7 +108,10 @@ public static class SessionEndpoints
                         var session = await JsonSerializer.DeserializeAsync<Session>(stream);
                         if (session != null) sessions.Add(session);
                     }
-                    catch {}
+                    catch (Exception ex)
+                    {
+                         logger.LogError(ex, "Failed to load session {File}", file);
+                    }
                 }
             }
 

@@ -10,11 +10,14 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add Services
+builder.Services.AddHttpClient(); // Required for IHttpClientFactory
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddScoped<IBlobStorageService, LocalFileSystemStorageService>();
 builder.Services.AddScoped<GoogleAuthService>();
+builder.Services.AddScoped<GoldTracker.Server.Services.Auth.ITokenService, GoldTracker.Server.Services.Auth.JwtTokenService>();
 
 // Add Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "super_secret_key_that_is_long_enough_for_hmac_sha256";

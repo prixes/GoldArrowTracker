@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
-using MudBlazor;
 using Archery.Shared.Services;
 
 namespace GoldTracker.Shared.UI.Components.Layout
